@@ -21,7 +21,6 @@
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
     body { background-color: var(--light); color: var(--dark); min-height: 100vh; display: flex; flex-direction: column; }
 
-    /* Top Bar */
     header {
       background-color: var(--primary);
       color: white;
@@ -54,14 +53,8 @@
     }
     .top-btn:hover { background: var(--secondary); color: var(--primary); }
 
-    /* Main Container with Sidebar + Content */
-    .app-container {
-      display: flex;
-      flex: 1;
-      min-height: calc(100vh - 60px);
-    }
+    .app-container { display: flex; flex: 1; min-height: calc(100vh - 60px); }
 
-    /* Navigation Sidebar */
     .sidebar {
       width: 250px;
       background-color: var(--sidebar-bg);
@@ -105,26 +98,13 @@
       font-weight: 700;
     }
 
-    .sidebar-footer {
-      padding: 1rem;
-      border-top: 1px solid #334155;
-      font-size: 0.75rem;
-      color: #64748b;
-      text-align: center;
-    }
+    .sidebar-footer { padding: 1rem; border-top: 1px solid #334155; font-size: 0.75rem; color: #64748b; text-align: center; }
 
-    /* Content Area */
-    .main-content {
-      flex: 1;
-      padding: 1.5rem;
-      overflow-y: auto;
-      max-width: 1400px;
-    }
+    .main-content { flex: 1; padding: 1.5rem; overflow-y: auto; max-width: 1400px; }
 
     .view-container { display: none; }
     .view-container.active { display: block; }
 
-    /* Dashboard Metrics Grid */
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -145,7 +125,6 @@
     .metric-info p { font-size: 1.8rem; font-weight: 800; color: var(--primary); margin-top: 0.25rem; }
     .metric-icon { font-size: 2rem; opacity: 0.8; }
 
-    /* Layout Cards & Grids */
     .card {
       background: white;
       border-radius: 8px;
@@ -185,17 +164,21 @@
     }
     select:focus, input:focus, textarea:focus { outline: none; border-color: var(--primary); }
 
-    /* Map Viewer */
+    /* Map Viewer — locked to the 740x507 traced map ratio so pins & route overlay align */
     .map-container {
       position: relative;
       width: 100%;
-      height: 400px;
+      height: 400px; /* fallback */
       border-radius: 8px;
       overflow: hidden;
       border: 1px solid var(--border);
       background: #111;
     }
-    .map-img { width: 100%; height: 100%; object-fit: contain; }
+    @supports (aspect-ratio: 1) {
+      .map-container { height: auto; aspect-ratio: 740 / 507; }
+    }
+    .map-img { width: 100%; height: 100%; object-fit: fill; display: block; }
+    #mapOverlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
     .map-pin {
       position: absolute;
       width: 18px;
@@ -207,7 +190,9 @@
       cursor: pointer;
       box-shadow: 0 2px 4px rgba(0,0,0,0.3);
       transition: transform 0.2s;
+      z-index: 5;
     }
+    .map-pin.office { background: #2563eb; }
     .map-pin:hover { transform: translate(-50%, -50%) scale(1.3); background: var(--secondary); }
     .map-pin-label {
       position: absolute;
@@ -223,7 +208,6 @@
       pointer-events: none;
     }
 
-    /* Route Box */
     .route-result {
       display: none;
       background: #f0fdf4;
@@ -247,7 +231,6 @@
       color: var(--primary);
     }
 
-    /* Directory Cards */
     .dest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 0.85rem; }
     .dest-card {
       border: 1px solid var(--border);
@@ -267,7 +250,6 @@
     .badge-building { background: #dcfce7; color: #15803d; }
     .badge-room { background: #fef3c7; color: #b45309; }
 
-    /* Admin Management Table */
     .admin-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: 0.85rem; }
     .admin-table th, .admin-table td { padding: 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
     .admin-table th { background: #f1f5f9; font-weight: 700; color: var(--dark); }
@@ -278,7 +260,6 @@
     .btn-primary { background: var(--primary); color: white; border: none; border-radius: 6px; padding: 0.6rem 1rem; font-weight: 600; cursor: pointer; }
     .btn-primary:hover { background: var(--primary-dark); }
 
-    /* Modal */
     .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
     .modal.active { display: flex; }
     .modal-content { background: white; padding: 1.5rem; border-radius: 8px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
@@ -289,7 +270,6 @@
 </head>
 <body>
 
-  <!-- Top Header -->
   <header>
     <div class="brand">
       <h1>TUNGO</h1>
@@ -304,13 +284,11 @@
   </header>
 
   <div class="app-container">
-    
-    <!-- Sidebar Navigation -->
+
     <aside class="sidebar">
       <div class="sidebar-header" id="sidebarHeaderTitle">User Navigation</div>
       <ul class="nav-menu">
-        
-        <!-- User Sidebar Links -->
+
         <li class="nav-item user-nav">
           <a class="nav-link active" onclick="switchTab('user-dashboard', this)">
             <span>📊</span> User Dashboard
@@ -327,7 +305,6 @@
           </a>
         </li>
 
-        <!-- Admin Sidebar Links -->
         <li class="nav-item admin-nav" style="display:none;">
           <a class="nav-link" onclick="switchTab('admin-dashboard', this)">
             <span>📈</span> Admin Overview
@@ -350,13 +327,12 @@
       </div>
     </aside>
 
-    <!-- Main Content Area -->
     <main class="main-content">
 
       <!-- USER DASHBOARD VIEW -->
       <div id="view-user-dashboard" class="view-container active">
         <h2 style="color:var(--primary); margin-bottom: 1rem;">Campus Explorer Dashboard</h2>
-        
+
         <div class="metrics-grid">
           <div class="metric-card">
             <div class="metric-info">
@@ -374,14 +350,14 @@
           </div>
           <div class="metric-card">
             <div class="metric-info">
-              <h3>Offices</h3>
+              <h3>Facilities</h3>
               <p id="usrStatOffices">0</p>
             </div>
             <div class="metric-icon">💼</div>
           </div>
           <div class="metric-card">
             <div class="metric-info">
-              <h3>Rooms & Labs</h3>
+              <h3>Walkway Nodes</h3>
               <p id="usrStatRooms">0</p>
             </div>
             <div class="metric-icon">🚪</div>
@@ -390,14 +366,11 @@
 
         <div class="card">
           <div class="card-title">Quick Campus Search & Route Quickstart</div>
-          <p style="font-size:0.9rem; color:#64748b; margin-bottom: 1rem;">Select where you are and where you want to go to immediately generate step-by-step directions.</p>
+          <p style="font-size:0.9rem; color:#64748b; margin-bottom: 1rem;">Select where you are and where you want to go to immediately generate step-by-step directions along the campus walkways.</p>
           <div style="display:grid; grid-template-columns: 1fr 1fr auto; gap:1rem; align-items:end;">
             <div class="form-group" style="margin:0;">
               <label>Starting Point:</label>
-              <select id="dashStartLoc">
-                <option value="main_gate">Main Entrance Gate (Notre Dame Ave)</option>
-                <option value="chapel">NDMC Chapel</option>
-              </select>
+              <select id="dashStartLoc"></select>
             </div>
             <div class="form-group" style="margin:0;">
               <label>Destination Target:</label>
@@ -416,12 +389,7 @@
               <div class="card-title">Direction & Route Finder</div>
               <div class="form-group">
                 <label for="startLoc">Select Starting Location:</label>
-                <select id="startLoc">
-                  <option value="main_gate">Main Entrance Gate (Notre Dame Ave)</option>
-                  <option value="chapel">NDMC Chapel</option>
-                  <option value="boyd_bldg">Fr. Joseph Boyd Building</option>
-                  <option value="madonna_bldg">Madonna Building</option>
-                </select>
+                <select id="startLoc"></select>
               </div>
 
               <div class="form-group">
@@ -430,6 +398,7 @@
               </div>
 
               <button class="btn-primary" style="width:100%; padding:0.75rem;" onclick="generateDirections()">Get Directions & Guide</button>
+              <button class="top-btn" style="width:100%; margin-top:0.5rem; border-color:var(--primary); color:var(--primary);" onclick="useGPS()">📍 Use My GPS Location as Start</button>
 
               <div id="routeOutput" class="route-result">
                 <h3 id="routeTitle" style="color: var(--primary); font-size: 1rem;"></h3>
@@ -454,6 +423,13 @@
               </div>
               <div class="map-container">
                 <img id="campusMapImg" src="image.png" class="map-img" alt="NDMC Campus Map">
+                <svg id="mapOverlay" viewBox="0 0 740 507" preserveAspectRatio="none">
+                  <g id="walkwayGroup" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1" fill="none"></g>
+                  <polyline id="routePolyline" fill="none" stroke="#ffcc00" stroke-width="4"
+                            stroke-linecap="round" stroke-linejoin="round" opacity="0.95" points=""/>
+                  <g id="routeDots"></g>
+                  <circle id="gpsMarker" r="6" fill="#3b82f6" stroke="#ffffff" stroke-width="2" style="display:none"/>
+                </svg>
                 <div id="mapPins"></div>
               </div>
             </div>
@@ -475,7 +451,7 @@
       <!-- ADMIN DASHBOARD VIEW -->
       <div id="view-admin-dashboard" class="view-container">
         <h2 style="color:var(--primary); margin-bottom: 1rem;">Admin System Overview</h2>
-        
+
         <div class="metrics-grid">
           <div class="metric-card">
             <div class="metric-info">
@@ -486,7 +462,7 @@
           </div>
           <div class="metric-card">
             <div class="metric-info">
-              <h3>Offices Configured</h3>
+              <h3>Facilities Configured</h3>
               <p id="admStatOffices">0</p>
             </div>
             <div class="metric-icon">💼</div>
@@ -522,9 +498,12 @@
         <div class="card">
           <div class="card-title">
             <span>Location Management Center</span>
-            <button class="btn-primary" style="padding:0.4rem 0.8rem; font-size:0.85rem;" onclick="openLocationModal()">+ Add Location</button>
+            <span>
+              <button class="top-btn" style="border-color:#94a3b8; color:#94a3b8; padding:0.4rem 0.8rem; font-size:0.85rem; margin-right:0.4rem;" onclick="resetMapLocations()">↺ Restore Map Data</button>
+              <button class="btn-primary" style="padding:0.4rem 0.8rem; font-size:0.85rem;" onclick="openLocationModal()">+ Add Location</button>
+            </span>
           </div>
-          <p style="font-size:0.85rem; color:#64748b; margin-bottom: 1rem;">Add, edit, remove, and update campus buildings, offices, rooms, images, and pins.</p>
+          <p style="font-size:0.85rem; color:#64748b; margin-bottom: 1rem;">Add, edit, remove, and update campus buildings, offices, rooms, images, and pins. Base entries come from mapdata.js (740 × 507 traced directory).</p>
 
           <table class="admin-table">
             <thead>
@@ -570,16 +549,16 @@
       <h3 id="modalFormTitle" style="color:var(--primary); margin-bottom: 1rem;">Add Location</h3>
       <input type="hidden" id="editLocId">
       <input type="hidden" id="locPhotoData">
-      
+
       <div class="form-group">
         <label>Location / Room / Office Name:</label>
         <input type="text" id="locName" required>
       </div>
-      
+
       <div class="form-group">
         <label>Category Type:</label>
         <select id="locCategory">
-          <option value="office">Office</option>
+          <option value="office">Office / Facility</option>
           <option value="building">Building</option>
           <option value="room">Room / Lab</option>
         </select>
@@ -640,6 +619,7 @@
   <div id="mapModal" class="modal">
     <div class="modal-content">
       <h3 style="color:var(--primary); margin-bottom: 1rem;">Upload Campus Map Image File</h3>
+      <p style="font-size:0.8rem; color:#64748b; margin-bottom:0.75rem;">Use the 740 × 507 traced campus directory image so pins and routes stay aligned.</p>
       <div class="form-group">
         <label>Select Map Image File from Local Storage:</label>
         <input type="file" id="mapFileInput" accept="image/*" onchange="previewMapFile(this)">
@@ -654,111 +634,260 @@
     </div>
   </div>
 
+  <!-- ============================================================
+       mapdata.js  —  loaded UNCHANGED (BUILDINGS, FACILITIES, ITEMS,
+       BLDG, GEO, G). To inline instead, paste the whole contents of
+       mapdata.js between this script tag's open/close tags.
+  ============================================================ -->
+  <script src="mapdata.js"></script>
+
   <script>
-    const defaultMapUrl = "image.png";
+    /* =====================================================================
+       TUNGO app — now powered by mapdata.js
+       Map space: 740 x 507 (matches the traced directory reference).
+    ===================================================================== */
+    const MAP_W = 740, MAP_H = 507;
+    const METERS_PER_UNIT = 0.5;      // 1 map unit ≈ 0.5 m — tune to your campus scale
+    const WALK_M_PER_MIN = 80;        // average walking speed for time estimate
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    const STORAGE_KEY = 'tungo_locations';
+    const defaultMapUrl = 'image.png';
 
-    const defaultLocations = [
-      {
-        id: "boyd_bldg",
-        name: "Fr. Joseph Boyd Building",
-        category: "building",
-        building: "Fr. Joseph Boyd Building",
-        floor: "Ground & Upper Floors",
-        photo: "image.png",
-        pinX: 20,
-        pinY: 12,
-        desc: "Main academic building housing key administrative and college departments.",
-        directions: {
-          main_gate: [
-            "Enter through the Main Entrance Gate along Notre Dame Avenue.",
-            "Head north along the western pathway.",
-            "The Fr. Joseph Boyd Building is on your left hand side near the top corner of the quad field."
-          ],
-          chapel: [
-            "Exit the Chapel and turn left (west).",
-            "Walk straight for 30 meters; Fr. Joseph Boyd Building will be directly ahead."
-          ]
-        }
-      },
-      {
-        id: "chapel",
-        name: "NDMC Chapel",
-        category: "building",
-        building: "NDMC Chapel",
-        floor: "Ground Floor",
-        photo: "image.png",
-        pinX: 38,
-        pinY: 10,
-        desc: "Campus chapel for spiritual services, mass, and quiet prayer.",
-        directions: {
-          main_gate: [
-            "Enter through the Main Entrance Gate.",
-            "Follow the central north-bound pathway straight toward the top perimeter.",
-            "The NDMC Chapel is located prominently along the top central campus area."
-          ],
-          chapel: [
-            "You are currently at the NDMC Chapel."
-          ]
-        }
-      },
-      {
-        id: "registrar",
-        name: "Registrar's Office",
-        category: "office",
-        building: "Fr. Joseph Boyd Building",
-        floor: "Ground Floor, Room 101",
-        photo: "image.png",
-        pinX: 22,
-        pinY: 16,
-        desc: "Handles transcript requests, enrollment evaluations, and student records.",
-        directions: {
-          main_gate: [
-            "Enter Main Gate on Notre Dame Ave.",
-            "Walk straight north towards Fr. Joseph Boyd Building.",
-            "Enter the main ground floor entrance; Registrar is to the right of the lobby."
-          ],
-          chapel: [
-            "Walk west from NDMC Chapel to Fr. Joseph Boyd Building.",
-            "Enter the main lobby on the ground floor."
-          ]
-        }
-      },
-      {
-        id: "madonna_bldg",
-        name: "Madonna Building",
-        category: "building",
-        building: "Madonna Building",
-        floor: "Ground & Upper Floors",
-        photo: "image.png",
-        pinX: 8,
-        pinY: 55,
-        desc: "Houses classrooms, faculty offices, and academic departments.",
-        directions: {
-          main_gate: [
-            "Enter the Main Gate on Notre Dame Avenue.",
-            "Turn left immediately along the western perimeter wall.",
-            "Madonna Building will be on your right hand side."
-          ],
-          chapel: [
-            "Head south-west across the main open field.",
-            "Proceed toward the western perimeter where Madonna Building is located."
-          ]
-        }
-      }
-    ];
+    /* Guard: make sure mapdata.js loaded */
+    if (typeof ITEMS === 'undefined' || typeof G === 'undefined') {
+      document.body.innerHTML = '<p style="padding:2rem; color:#b91c1c; font-weight:600;">mapdata.js could not be loaded. Make sure it sits in the same folder as this HTML file.</p>';
+      throw new Error('mapdata.js missing');
+    }
 
-    let locations = JSON.parse(localStorage.getItem('tungo_locations')) || defaultLocations;
+    /* ---- Fixed start points in map coordinates ---- */
+    const START_POINTS = {
+      main_gate: { name: 'Main Entrance Gate (Notre Dame Ave)', x: 450, y: 488 },
+      chapel:    { name: 'NDMC Chapel', ref: '10', x: 603, y: 377 }
+    };
+
+    /* ---- Build the location list straight from ITEMS (no data changed) ---- */
+    function buildFromMapData() {
+      return ITEMS.map(function (it) {
+        return {
+          id: 'ndmc_' + it.id,
+          mapRef: it.id,                       // links to G.door for exact door nodes
+          name: it.name,
+          category: it.kind === 'b' ? 'building' : 'office',
+          building: it.name,
+          floor: it.kind === 'b' ? 'Ground & Upper Floors' : 'Ground Floor',
+          photo: defaultMapUrl,
+          pinX: +(it.x / MAP_W * 100).toFixed(2),
+          pinY: +(it.y / MAP_H * 100).toFixed(2),
+          mapX: it.x,
+          mapY: it.y,
+          desc: (it.kind === 'b'
+            ? 'Campus building plotted on the official NDMC directory map (map ref ' + it.id + ').'
+            : 'Campus facility plotted on the official NDMC directory map (map ref ' + it.id + ').'),
+          directions: null                     // computed live from the walkway graph
+        };
+      });
+    }
+
+    /* ---- Storage (version-tagged so old fake data is replaced) ---- */
+    function loadLocations() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        if (raw && raw.v === 2 && Array.isArray(raw.items) && raw.items.length) return raw.items;
+      } catch (e) { /* corrupted storage -> reseed */ }
+      return null;
+    }
+    function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 2, items: locations })); }
+
+    let locations = loadLocations() || buildFromMapData();
+    if (!loadLocations()) persist();
+
     let campusMapUrl = localStorage.getItem('tungo_map_url') || defaultMapUrl;
     let tempMapData = null;
     let isAdmin = false;
+    let gpsPoint = null;
 
-    // Initialize application
-    window.onload = function() {
+    /* =====================================================================
+       Pathfinding over the G walkway graph from mapdata.js
+    ===================================================================== */
+    let ADJ = null;
+    function getAdj() {
+      if (ADJ) return ADJ;
+      ADJ = G.n.map(function () { return []; });
+      G.e.forEach(function (ed) {
+        const a = ed[0], b = ed[1];
+        const d = Math.hypot(G.n[a][0] - G.n[b][0], G.n[a][1] - G.n[b][1]);
+        ADJ[a].push([b, d]);
+        ADJ[b].push([a, d]);
+      });
+      return ADJ;
+    }
+
+    function nearestNode(x, y) {
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < G.n.length; i++) {
+        const dx = G.n[i][0] - x, dy = G.n[i][1] - y;
+        const d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = i; }
+      }
+      return best;
+    }
+
+    function dijkstra(src, dst) {
+      const adj = getAdj(), N = G.n.length;
+      const dist = new Array(N).fill(Infinity);
+      const prev = new Array(N).fill(-1);
+      const done = new Array(N).fill(false);
+      dist[src] = 0;
+      for (let iter = 0; iter < N; iter++) {
+        let u = -1, best = Infinity;
+        for (let i = 0; i < N; i++) if (!done[i] && dist[i] < best) { best = dist[i]; u = i; }
+        if (u === -1 || u === dst) break;
+        done[u] = true;
+        for (let k = 0; k < adj[u].length; k++) {
+          const v = adj[u][k][0], w = adj[u][k][1];
+          if (dist[u] + w < dist[v]) { dist[v] = dist[u] + w; prev[v] = u; }
+        }
+      }
+      if (dist[dst] === Infinity) return null;
+      const path = [];
+      for (let c = dst; c !== -1; c = prev[c]) path.unshift(c);
+      return { path: path, dist: dist[dst] };
+    }
+
+    /* Map coords: +x = east, +y = south (screen space) */
+    function compassLabel(dx, dy) {
+      const dirs = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
+      let ang = Math.atan2(dy, dx) * 180 / Math.PI;
+      if (ang < 0) ang += 360;
+      return dirs[Math.round(ang / 45) % 8];
+    }
+    function turnType(ax, ay, bx, by) {
+      const cross = ax * by - ay * bx;                 // >0 = clockwise on screen = right turn
+      const dot = ax * bx + ay * by;
+      const deg = Math.abs(Math.atan2(cross, dot) * 180 / Math.PI);
+      if (deg < 30) return 'straight';
+      return cross > 0 ? 'right' : 'left';
+    }
+    function fmtStep(seg, turnIn) {
+      const m = Math.max(1, Math.round(seg.dist));
+      if (!turnIn) return 'Head ' + seg.dir + ' for about ' + m + ' m.';
+      return 'Turn ' + turnIn + ' and head ' + seg.dir + ' for about ' + m + ' m.';
+    }
+    function buildSteps(path, destName) {
+      const pts = path.map(function (i) { return G.n[i]; });
+      const steps = [];
+      let cur = null, pendingTurn = null, pv = null;
+      for (let i = 1; i < pts.length; i++) {
+        const vx = pts[i][0] - pts[i - 1][0], vy = pts[i][1] - pts[i - 1][1];
+        const d = Math.hypot(vx, vy) * METERS_PER_UNIT;
+        const dir = compassLabel(vx, vy);
+        if (!cur) { cur = { dir: dir, dist: d }; }
+        else {
+          const t = turnType(pv[0], pv[1], vx, vy);
+          if (t === 'straight') { cur.dist += d; }
+          else {
+            steps.push(fmtStep(cur, pendingTurn));
+            pendingTurn = t;
+            cur = { dir: dir, dist: d };
+          }
+        }
+        pv = [vx, vy];
+      }
+      if (cur) steps.push(fmtStep(cur, pendingTurn));
+      steps.push('You have arrived at ' + destName + '.');
+      return steps;
+    }
+
+    function destCoord(loc) {
+      if (loc.mapX !== undefined) return { x: loc.mapX, y: loc.mapY };
+      return { x: (loc.pinX / 100) * MAP_W, y: (loc.pinY / 100) * MAP_H };
+    }
+    function itemDoorNode(ref) { return (ref && G.door[ref] !== undefined) ? G.door[ref] : null; }
+    function startNode(key) {
+      if (key === 'gps' && gpsPoint) return nearestNode(gpsPoint.x, gpsPoint.y);
+      if (key !== 'main_gate') {
+        if (key === 'chapel') { const d = itemDoorNode(START_POINTS.chapel.ref); if (d !== null) return d; }
+        const loc = locations.find(l => l.id === key);
+        if (loc) {
+          const d = itemDoorNode(loc.mapRef);
+          if (d !== null) return d;
+          const c = destCoord(loc);
+          return nearestNode(c.x, c.y);
+        }
+      }
+      return nearestNode(START_POINTS.main_gate.x, START_POINTS.main_gate.y);
+    }
+    function destNode(loc) {
+      const d = itemDoorNode(loc.mapRef);
+      if (d !== null) return d;
+      const c = destCoord(loc);
+      return nearestNode(c.x, c.y);
+    }
+
+    /* =====================================================================
+       Map rendering (walkways, route, GPS marker, pins)
+    ===================================================================== */
+    function drawWalkways() {
+      const g = document.getElementById('walkwayGroup');
+      const frag = document.createDocumentFragment();
+      G.e.forEach(function (ed) {
+        const l = document.createElementNS(SVG_NS, 'line');
+        l.setAttribute('x1', G.n[ed[0]][0]); l.setAttribute('y1', G.n[ed[0]][1]);
+        l.setAttribute('x2', G.n[ed[1]][0]); l.setAttribute('y2', G.n[ed[1]][1]);
+        frag.appendChild(l);
+      });
+      g.appendChild(frag);
+    }
+
+    function drawRoute(path) {
+      const pl = document.getElementById('routePolyline');
+      const dots = document.getElementById('routeDots');
+      dots.innerHTML = '';
+      if (!path || path.length < 2) { pl.setAttribute('points', ''); return; }
+      pl.setAttribute('points', path.map(i => G.n[i][0] + ',' + G.n[i][1]).join(' '));
+      [[path[0], '#22c55e'], [path[path.length - 1], '#ffcc00']].forEach(function (p) {
+        const c = document.createElementNS(SVG_NS, 'circle');
+        c.setAttribute('cx', G.n[p[0]][0]); c.setAttribute('cy', G.n[p[0]][1]); c.setAttribute('r', 5);
+        c.setAttribute('fill', p[1]); c.setAttribute('stroke', '#0f172a'); c.setAttribute('stroke-width', 1.5);
+        dots.appendChild(c);
+      });
+    }
+
+    function useGPS() {
+      if (!GEO) { alert('GPS is not configured yet.\nSet the GEO corners (nwLat/nwLng/seLat/seLng) in mapdata.js to enable it.'); return; }
+      if (!navigator.geolocation) { alert('Geolocation is not supported by this browser.'); return; }
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        const x = (pos.coords.longitude - GEO.nwLng) / (GEO.seLng - GEO.nwLng) * MAP_W;
+        const y = (GEO.nwLat - pos.coords.latitude) / (GEO.nwLat - GEO.seLat) * MAP_H;
+        gpsPoint = { x: Math.min(MAP_W, Math.max(0, x)), y: Math.min(MAP_H, Math.max(0, y)) };
+        const mk = document.getElementById('gpsMarker');
+        mk.setAttribute('cx', gpsPoint.x); mk.setAttribute('cy', gpsPoint.y);
+        mk.style.display = 'block';
+        const sel = document.getElementById('startLoc');
+        if (!sel.querySelector('option[value="gps"]')) {
+          const o = document.createElement('option');
+          o.value = 'gps'; o.textContent = '📍 My GPS Location';
+          sel.insertBefore(o, sel.options[2]);
+        }
+        sel.value = 'gps';
+        generateDirections();
+      }, function () { alert('Unable to retrieve your location.'); });
+    }
+
+    /* =====================================================================
+       Core app functions
+    ===================================================================== */
+    function refreshAll() {
       updateSelectDropdowns();
       renderMetrics();
       renderDirectory();
       renderMapPins();
       renderAdminView();
+    }
+
+    window.onload = function () {
+      drawWalkways();
+      refreshAll();
     };
 
     function switchTab(tabId, el) {
@@ -804,11 +933,11 @@
         document.getElementById('loginPass').value = '';
         document.getElementById('authBtn').textContent = 'Logout (Admin)';
         document.getElementById('roleIndicator').textContent = 'Mode: Administrator';
-        
+
         document.querySelectorAll('.admin-nav').forEach(n => n.style.display = 'block');
         document.querySelectorAll('.user-nav').forEach(n => n.style.display = 'none');
         document.getElementById('sidebarHeaderTitle').textContent = 'Admin Navigation';
-        
+
         closeModal('loginModal');
         switchTab('admin-dashboard', document.querySelectorAll('.admin-nav .nav-link')[0]);
       } else {
@@ -824,15 +953,12 @@
       const total = locations.length;
       const bldgs = locations.filter(l => l.category === 'building').length;
       const offices = locations.filter(l => l.category === 'office').length;
-      const rooms = locations.filter(l => l.category === 'room').length;
 
-      // User Metrics
       document.getElementById('usrStatTotal').textContent = total;
       document.getElementById('usrStatBuildings').textContent = bldgs;
       document.getElementById('usrStatOffices').textContent = offices;
-      document.getElementById('usrStatRooms').textContent = rooms;
+      document.getElementById('usrStatRooms').textContent = G.n.length; // real walkway nodes
 
-      // Admin Metrics
       document.getElementById('admStatTotal').textContent = total;
       document.getElementById('admStatBuildings').textContent = bldgs;
       document.getElementById('admStatOffices').textContent = offices;
@@ -840,9 +966,10 @@
     }
 
     function updateSelectDropdowns() {
-      const selects = [document.getElementById('destLoc'), document.getElementById('dashDestLoc')];
-      selects.forEach(select => {
+      // Destinations
+      [document.getElementById('destLoc'), document.getElementById('dashDestLoc')].forEach(select => {
         if (!select) return;
+        const cur = select.value;
         select.innerHTML = '';
         locations.forEach(loc => {
           const opt = document.createElement('option');
@@ -850,6 +977,23 @@
           opt.textContent = `${loc.name} (${loc.building})`;
           select.appendChild(opt);
         });
+        if (cur && locations.some(l => l.id === cur)) select.value = cur;
+      });
+
+      // Start points: fixed entrances + every mapped location
+      [document.getElementById('startLoc'), document.getElementById('dashStartLoc')].forEach(select => {
+        if (!select) return;
+        const cur = select.value;
+        select.innerHTML =
+          '<option value="main_gate">Main Entrance Gate (Notre Dame Ave)</option>' +
+          '<option value="chapel">NDMC Chapel</option>';
+        locations.forEach(loc => {
+          const opt = document.createElement('option');
+          opt.value = loc.id;
+          opt.textContent = loc.name;
+          select.appendChild(opt);
+        });
+        if (cur) select.value = cur;
       });
     }
 
@@ -867,7 +1011,7 @@
     function previewLocFile(input) {
       if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
           document.getElementById('locPhotoData').value = e.target.result;
           document.getElementById('locPhotoPreview').innerHTML = `<img src="${e.target.result}">`;
         };
@@ -878,7 +1022,7 @@
     function previewMapFile(input) {
       if (input.files && input.files[0]) {
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
           tempMapData = e.target.result;
           document.getElementById('mapFilePreview').innerHTML = `<img src="${e.target.result}">`;
         };
@@ -894,11 +1038,12 @@
 
       locations.forEach(loc => {
         const pin = document.createElement('div');
-        pin.className = 'map-pin';
+        pin.className = 'map-pin' + (loc.category === 'office' ? ' office' : '');
         pin.style.left = `${loc.pinX}%`;
         pin.style.top = `${loc.pinY}%`;
         pin.onclick = () => {
           document.getElementById('destLoc').value = loc.id;
+          switchTab('user-navigation', document.querySelectorAll('.user-nav .nav-link')[1]);
           generateDirections();
         };
 
@@ -922,22 +1067,50 @@
       preview.innerHTML = `
         <h4 style="color:var(--primary);">${loc.name}</h4>
         <p style="font-size:0.8rem; color:#64748b; margin-bottom:0.5rem;">${loc.building} — ${loc.floor}</p>
-        ${loc.photo ? `<img src="${loc.photo}" style="width:100\%; height:160px; object-fit:cover; border-radius:6px;" alt="${loc.name}">` : ''}
+        ${loc.photo ? `<img src="${loc.photo}" style="width:100%; height:160px; object-fit:cover; border-radius:6px;" alt="${loc.name}">` : ''}
         <p style="font-size:0.85rem; margin-top:0.5rem; color:#334155;">${loc.desc}</p>
       `;
 
-      const steps = (loc.directions && loc.directions[startKey]) ? loc.directions[startKey] : loc.directions['main_gate'] || ["Proceed to destination."];
-      
-      document.getElementById('routeTitle').textContent = `Route to ${loc.name}`;
-      document.getElementById('routeMeta').textContent = `Target: ${loc.building} (${loc.floor})`;
+      const sNode = startNode(startKey);
+      const eNode = destNode(loc);
+      const result = (sNode !== eNode) ? dijkstra(sNode, eNode) : null;
 
       const stepsList = document.getElementById('routeSteps');
       stepsList.innerHTML = '';
-      steps.forEach(step => {
+
+      if (sNode === eNode) {
+        document.getElementById('routeTitle').textContent = `Route to ${loc.name}`;
+        document.getElementById('routeMeta').textContent = 'You are already at this location.';
         const li = document.createElement('li');
-        li.textContent = step;
+        li.textContent = `You are already at ${loc.name}.`;
         stepsList.appendChild(li);
-      });
+        drawRoute(null);
+      } else if (result && result.path.length > 1) {
+        const meters = result.dist * METERS_PER_UNIT;
+        const mins = Math.max(1, Math.round(meters / WALK_M_PER_MIN));
+        document.getElementById('routeTitle').textContent = `Route to ${loc.name}`;
+        document.getElementById('routeMeta').textContent =
+          `Distance ≈ ${Math.round(meters)} m • about ${mins} min walk`;
+        buildSteps(result.path, loc.name).forEach(step => {
+          const li = document.createElement('li');
+          li.textContent = step;
+          stepsList.appendChild(li);
+        });
+        drawRoute(result.path);
+      } else {
+        // Fallback: custom/edited locations or unreachable nodes -> saved text directions
+        const steps = (loc.directions && loc.directions[startKey])
+          ? loc.directions[startKey]
+          : (loc.directions && loc.directions['main_gate']) || ['Follow the highlighted path to the destination pin.'];
+        document.getElementById('routeTitle').textContent = `Route to ${loc.name}`;
+        document.getElementById('routeMeta').textContent = `Target: ${loc.building} (${loc.floor})`;
+        steps.forEach(step => {
+          const li = document.createElement('li');
+          li.textContent = step;
+          stepsList.appendChild(li);
+        });
+        drawRoute(null);
+      }
 
       document.getElementById('routeOutput').style.display = 'block';
     }
@@ -947,10 +1120,10 @@
       const grid = document.getElementById('directoryGrid');
       grid.innerHTML = '';
 
-      const filtered = locations.filter(loc => 
+      const filtered = locations.filter(loc =>
         loc.name.toLowerCase().includes(q) ||
-        loc.building.toLowerCase().includes(q) ||
-        loc.desc.toLowerCase().includes(q)
+        (loc.building || '').toLowerCase().includes(q) ||
+        (loc.desc || '').toLowerCase().includes(q)
       );
 
       filtered.forEach(loc => {
@@ -959,6 +1132,7 @@
         card.onclick = () => {
           document.getElementById('destLoc').value = loc.id;
           switchTab('user-navigation', document.querySelectorAll('.user-nav .nav-link')[1]);
+          generateDirections();
         };
 
         const photoHtml = loc.photo ? `<img src="${loc.photo}" alt="${loc.name}">` : '';
@@ -998,7 +1172,7 @@
     function openLocationModal(locId = null) {
       document.getElementById('editLocId').value = locId || '';
       document.getElementById('locPhotoInput').value = '';
-      
+
       if (locId) {
         const loc = locations.find(l => l.id === locId);
         document.getElementById('modalFormTitle').textContent = 'Edit Location';
@@ -1010,7 +1184,7 @@
         document.getElementById('locPhotoPreview').innerHTML = loc.photo ? `<img src="${loc.photo}">` : '<span style="font-size:0.75rem; color:#94a3b8;">No Image Selected</span>';
         document.getElementById('locPinX').value = loc.pinX;
         document.getElementById('locPinY').value = loc.pinY;
-        document.getElementById('locDesc').value = loc.desc;
+        document.getElementById('locDesc').value = loc.desc || '';
         document.getElementById('dirMainGate').value = loc.directions?.main_gate ? loc.directions.main_gate.join('\n') : '';
         document.getElementById('dirChapel').value = loc.directions?.chapel ? loc.directions.chapel.join('\n') : '';
       } else {
@@ -1051,15 +1225,21 @@
         return;
       }
 
+      // Convert % pin back into map coordinates so routing works for custom entries too
+      const existing = locations.find(l => l.id === id);
+
       const newLoc = {
         id,
+        mapRef: existing ? existing.mapRef : undefined,
         name,
         category,
         building,
-        floor,
+        floor: floor || 'Ground Floor',
         photo,
         pinX,
         pinY,
+        mapX: +(pinX / 100 * MAP_W).toFixed(2),
+        mapY: +(pinY / 100 * MAP_H).toFixed(2),
         desc,
         directions: {
           main_gate: mainGateSteps.length ? mainGateSteps : ["Walk towards building destination."],
@@ -1074,21 +1254,24 @@
         locations.push(newLoc);
       }
 
-      localStorage.setItem('tungo_locations', JSON.stringify(locations));
+      persist();
       closeModal('locationModal');
-      updateSelectDropdowns();
-      renderMetrics();
-      renderAdminView();
+      refreshAll();
     }
 
     function deleteLocation(id) {
       if (confirm("Are you sure you want to remove this location?")) {
         locations = locations.filter(l => l.id !== id);
-        localStorage.setItem('tungo_locations', JSON.stringify(locations));
-        updateSelectDropdowns();
-        renderMetrics();
-        renderAdminView();
+        persist();
+        refreshAll();
       }
+    }
+
+    function resetMapLocations() {
+      if (!confirm('Restore the original NDMC map locations from mapdata.js? Custom entries will be removed.')) return;
+      locations = buildFromMapData();
+      persist();
+      refreshAll();
     }
 
     function openMapConfigModal() {
