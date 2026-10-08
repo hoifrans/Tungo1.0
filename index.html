@@ -164,7 +164,6 @@
     }
     select:focus, input:focus, textarea:focus { outline: none; border-color: var(--primary); }
 
-    /* Map Viewer — locked to the 740x507 traced map ratio so pins & route overlay align */
     .map-container {
       position: relative;
       width: 100%;
@@ -267,7 +266,7 @@
     .img-preview-box { width: 100%; height: 120px; border: 1px dashed var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-top: 0.5rem; background: #f8fafc; }
     .img-preview-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
-    /* ═══ NEW: 3D Campus View styles ═══ */
+    /* ═══ 3D Campus View styles ═══ */
     .canvas3d-wrap {
       position: relative;
       width: 100%;
@@ -280,7 +279,7 @@
     }
     .canvas3d-wrap.dragging { cursor: grabbing; }
     #isoCanvas { width: 100%; height: 100%; display: block; touch-action: none; }
-    .iso-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .iso-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 70%; }
     .iso-btn {
       background: rgba(15,23,42,0.78);
       color: var(--secondary);
@@ -303,6 +302,8 @@
       border-radius: 6px;
       pointer-events: none;
     }
+    .iso-route-grid { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 0.75rem; align-items: end; }
+    @media (max-width: 800px) { .iso-route-grid { grid-template-columns: 1fr 1fr; } }
   </style>
 </head>
 <body>
@@ -336,7 +337,6 @@
             <span>🗺️</span> Campus Map & Route
           </a>
         </li>
-        <!-- ═══ NEW: 3D view nav item ═══ -->
         <li class="nav-item user-nav">
           <a class="nav-link" onclick="switchTab('3d', this)">
             <span>🧊</span> 3D Campus View
@@ -424,7 +424,7 @@
         </div>
       </div>
 
-      <!-- USER NAVIGATION & ROUTE VIEW -->
+      <!-- USER NAVIGATION & ROUTE VIEW (2D) -->
       <div id="view-user-navigation" class="view-container">
         <div class="visitor-layout">
           <div>
@@ -480,8 +480,34 @@
         </div>
       </div>
 
-      <!-- ═══ NEW: 3D CAMPUS VIEW ═══ -->
+      <!-- ═══ 3D CAMPUS VIEW (with route planner) ═══ -->
       <div id="view-3d" class="view-container">
+
+        <div class="card">
+          <div class="card-title">
+            <span>3D Route Planner</span>
+            <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">Pick from the lists — or click a building below and use Set as Start / Set as Destination</span>
+          </div>
+          <div class="iso-route-grid">
+            <div class="form-group" style="margin:0;">
+              <label>🚶 Start From:</label>
+              <select id="isoStartSel"></select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>🎯 Destination:</label>
+              <select id="isoDestSel"></select>
+            </div>
+            <button class="btn-primary" onclick="isoComputeFromSelects()">🧭 Show Route in 3D</button>
+            <button class="top-btn" style="border-color:var(--primary); color:var(--primary);" onclick="isoFocusRoute()">🔍 Focus Route</button>
+          </div>
+
+          <div id="isoRouteOutput" class="route-result">
+            <h3 id="isoRouteTitle" style="color: var(--primary); font-size: 1rem;"></h3>
+            <p id="isoRouteMeta" style="font-size: 0.8rem; color: #475569; margin-top: 0.2rem;"></p>
+            <ol id="isoRouteSteps" class="route-steps"></ol>
+          </div>
+        </div>
+
         <div class="card">
           <div class="card-title">
             <span>3D Campus View</span>
@@ -497,14 +523,17 @@
               <button class="iso-btn" id="spinBtn" onclick="isoToggleSpin()">⏸ Spin: On</button>
               <button class="iso-btn" onclick="isoReset()">⤢ Reset</button>
             </div>
-            <div class="iso-hint">Drag = orbit &nbsp;•&nbsp; Wheel = zoom &nbsp;•&nbsp; Double-click = reset &nbsp;•&nbsp; Click a building for info</div>
+            <div class="iso-hint">Drag = orbit &nbsp;•&nbsp; Wheel = zoom &nbsp;•&nbsp; Double-click = reset &nbsp;•&nbsp; Click a building → Set as Start / Destination</div>
           </div>
         </div>
 
         <div class="card" id="isoInfoCard" style="display:none;">
           <div class="card-title"><span id="isoInfoName"></span></div>
           <p id="isoInfoDesc" style="font-size:0.9rem; color:#475569; margin-bottom: 0.75rem;"></p>
-          <button class="btn-primary" onclick="isoRouteToSelected()">🧭 Route to this building</button>
+          <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+            <button class="btn-primary" style="background:#2563eb;" onclick="isoSetStartFromSel()">🚶 Set as Start</button>
+            <button class="btn-primary" onclick="isoSetDestFromSel()">🎯 Set as Destination & Route</button>
+          </div>
         </div>
       </div>
       <!-- ═══ END 3D VIEW ═══ -->
@@ -769,7 +798,7 @@
     let tempMapData = null;
     let isAdmin = false;
     let gpsPoint = null;
-    let lastRoutePath3D = null;   /* shared with the 3D renderer */
+    let currentRoute = null;   /* shared by 2D + 3D views: {ok, path, meters, mins, steps, startLabel, destLabel, startBIdx, destBIdx, startNodeId, destNodeId} */
 
     /* =====================================================================
        Pathfinding over the G walkway graph
@@ -867,6 +896,7 @@
       return { x: (loc.pinX / 100) * MAP_W, y: (loc.pinY / 100) * MAP_H };
     }
     function itemDoorNode(ref) { return (ref && G.door[ref] !== undefined) ? G.door[ref] : null; }
+
     function startNode(key) {
       if (key === 'gps' && gpsPoint) return nearestNode(gpsPoint.x, gpsPoint.y);
       if (key !== 'main_gate') {
@@ -887,6 +917,134 @@
       const c = destCoord(loc);
       return nearestNode(c.x, c.y);
     }
+    function startLabelFor(key) {
+      if (key === 'main_gate') return START_POINTS.main_gate.name;
+      if (key === 'chapel') return START_POINTS.chapel.name;
+      if (key === 'gps') return 'My GPS Location';
+      const loc = locations.find(l => l.id === key);
+      return loc ? loc.name : 'Start';
+    }
+    /* Which 3D building (index in BUILDINGS) does a location/start correspond to? */
+    function bIdxByRef(ref) { return BUILDINGS.findIndex(b => b[0] === ref); }
+    function buildingIdxForStartKey(key) {
+      if (key === 'chapel') return bIdxByRef(START_POINTS.chapel.ref);
+      const loc = locations.find(l => l.id === key);
+      return (loc && loc.mapRef) ? bIdxByRef(loc.mapRef) : -1;
+    }
+    function buildingIdxForLoc(loc) {
+      return (loc && loc.mapRef) ? bIdxByRef(loc.mapRef) : -1;
+    }
+
+    /* =====================================================================
+       Unified route computation + UI sync (used by BOTH 2D and 3D views)
+    ===================================================================== */
+    function computeRoute(startKey, destId) {
+      const loc = locations.find(l => l.id === destId);
+      if (!loc) return { fail: true, msg: 'Destination not found.' };
+      const sNode = startNode(startKey);
+      const eNode = destNode(loc);
+      const base = {
+        startLabel: startLabelFor(startKey),
+        destLabel: loc.name,
+        startBIdx: buildingIdxForStartKey(startKey),
+        destBIdx: buildingIdxForLoc(loc),
+        startNodeId: sNode,
+        destNodeId: eNode
+      };
+      if (sNode === eNode) return Object.assign(base, { same: true });
+      const result = dijkstra(sNode, eNode);
+      if (!result || result.path.length < 2) return Object.assign(base, { fail: true, msg: 'No walkable path found between these points.' });
+      const meters = result.dist * METERS_PER_UNIT;
+      const mins = Math.max(1, Math.round(meters / WALK_M_PER_MIN));
+      return Object.assign(base, {
+        ok: true,
+        path: result.path,
+        meters: Math.round(meters),
+        mins: mins,
+        steps: buildSteps(result.path, loc.name)
+      });
+    }
+
+    function fillStepsList(el, route) {
+      el.innerHTML = '';
+      let list = [];
+      if (route.ok) list = route.steps;
+      else if (route.same) list = ['You are already at ' + route.destLabel + '.'];
+      else list = [route.msg || 'Route unavailable.'];
+      list.forEach(s => {
+        const li = document.createElement('li');
+        li.textContent = s;
+        el.appendChild(li);
+      });
+    }
+
+    function applyRoute(route, opts) {
+      currentRoute = route;
+      opts = opts || {};
+
+      /* ---- 2D map overlay ---- */
+      const pl = document.getElementById('routePolyline');
+      const dots = document.getElementById('routeDots');
+      dots.innerHTML = '';
+      if (route.ok) {
+        pl.setAttribute('points', route.path.map(i => G.n[i][0] + ',' + G.n[i][1]).join(' '));
+        [[route.path[0], '#22c55e'], [route.path[route.path.length - 1], '#ffcc00']].forEach(function (p) {
+          const c = document.createElementNS(SVG_NS, 'circle');
+          c.setAttribute('cx', G.n[p[0]][0]); c.setAttribute('cy', G.n[p[0]][1]); c.setAttribute('r', 5);
+          c.setAttribute('fill', p[1]); c.setAttribute('stroke', '#0f172a'); c.setAttribute('stroke-width', 1.5);
+          dots.appendChild(c);
+        });
+      } else {
+        pl.setAttribute('points', '');
+      }
+
+      /* ---- 2D text panel ---- */
+      const loc2 = locations.find(l => l.name === route.destLabel);
+      document.getElementById('routeTitle').textContent = 'Route to ' + route.destLabel;
+      document.getElementById('routeMeta').textContent = route.ok
+        ? route.startLabel + ' → ' + route.destLabel + ' • Distance ≈ ' + route.meters + ' m • about ' + route.mins + ' min walk'
+        : (route.same ? 'You are already at this location.' : (route.msg || ''));
+      fillStepsList(document.getElementById('routeSteps'), route);
+      document.getElementById('routeOutput').style.display = 'block';
+
+      /* ---- 3D text panel ---- */
+      document.getElementById('isoRouteTitle').textContent = 'Route to ' + route.destLabel;
+      document.getElementById('isoRouteMeta').textContent = route.ok
+        ? route.startLabel + ' → ' + route.destLabel + ' • Distance ≈ ' + route.meters + ' m • about ' + route.mins + ' min walk'
+        : (route.same ? 'You are already at this location.' : (route.msg || ''));
+      fillStepsList(document.getElementById('isoRouteSteps'), route);
+      document.getElementById('isoRouteOutput').style.display = 'block';
+
+      /* ---- keep the selects of both views in sync ---- */
+      if (opts.startKey) {
+        document.getElementById('startLoc').value = opts.startKey;
+        document.getElementById('isoStartSel').value = opts.startKey;
+      }
+      if (opts.destId) {
+        document.getElementById('destLoc').value = opts.destId;
+        document.getElementById('isoDestSel').value = opts.destId;
+      }
+
+      /* ---- 3D camera: stop spin so the route is readable ---- */
+      iso.spin = false; isoSpinBtn();
+
+      /* ---- location preview (2D side) ---- */
+      if (loc2) {
+        document.getElementById('destImagePreview').innerHTML = `
+          <h4 style="color:var(--primary);">${loc2.name}</h4>
+          <p style="font-size:0.8rem; color:#64748b; margin-bottom:0.5rem;">${loc2.building} — ${loc2.floor}</p>
+          ${loc2.photo ? `<img src="${loc2.photo}" style="width:100%; height:160px; object-fit:cover; border-radius:6px;" alt="${loc2.name}">` : ''}
+          <p style="font-size:0.85rem; margin-top:0.5rem; color:#334155;">${loc2.desc || ''}</p>
+        `;
+      }
+    }
+
+    function generateDirections() {
+      const startKey = document.getElementById('startLoc').value;
+      const destId = document.getElementById('destLoc').value;
+      const route = computeRoute(startKey, destId);
+      applyRoute(route, { startKey: startKey, destId: destId });
+    }
 
     /* =====================================================================
        2D map rendering
@@ -903,21 +1061,6 @@
       g.appendChild(frag);
     }
 
-    function drawRoute(path) {
-      lastRoutePath3D = (path && path.length > 1) ? path : null;   /* 3D view mirrors the route */
-      const pl = document.getElementById('routePolyline');
-      const dots = document.getElementById('routeDots');
-      dots.innerHTML = '';
-      if (!path || path.length < 2) { pl.setAttribute('points', ''); return; }
-      pl.setAttribute('points', path.map(i => G.n[i][0] + ',' + G.n[i][1]).join(' '));
-      [[path[0], '#22c55e'], [path[path.length - 1], '#ffcc00']].forEach(function (p) {
-        const c = document.createElementNS(SVG_NS, 'circle');
-        c.setAttribute('cx', G.n[p[0]][0]); c.setAttribute('cy', G.n[p[0]][1]); c.setAttribute('r', 5);
-        c.setAttribute('fill', p[1]); c.setAttribute('stroke', '#0f172a'); c.setAttribute('stroke-width', 1.5);
-        dots.appendChild(c);
-      });
-    }
-
     function useGPS() {
       if (!GEO) { alert('GPS is not configured yet.\nSet the GEO corners (nwLat/nwLng/seLat/seLng) in mapdata.js to enable it.'); return; }
       if (!navigator.geolocation) { alert('Geolocation is not supported by this browser.'); return; }
@@ -928,13 +1071,16 @@
         const mk = document.getElementById('gpsMarker');
         mk.setAttribute('cx', gpsPoint.x); mk.setAttribute('cy', gpsPoint.y);
         mk.style.display = 'block';
-        const sel = document.getElementById('startLoc');
-        if (!sel.querySelector('option[value="gps"]')) {
-          const o = document.createElement('option');
-          o.value = 'gps'; o.textContent = '📍 My GPS Location';
-          sel.insertBefore(o, sel.options[2]);
-        }
-        sel.value = 'gps';
+        ['startLoc', 'isoStartSel'].forEach(function (id) {
+          const sel = document.getElementById(id);
+          if (!sel.querySelector('option[value="gps"]')) {
+            const o = document.createElement('option');
+            o.value = 'gps'; o.textContent = '📍 My GPS Location';
+            sel.insertBefore(o, sel.options[2]);
+          }
+        });
+        document.getElementById('startLoc').value = 'gps';
+        document.getElementById('isoStartSel').value = 'gps';
         generateDirections();
       }, function () { alert('Unable to retrieve your location.'); });
     }
@@ -956,7 +1102,7 @@
     };
 
     function switchTab(tabId, el) {
-      iso.active = (tabId === '3d');   /* pause 3D loop when leaving */
+      iso.active = (tabId === '3d');
 
       document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
       document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
@@ -967,7 +1113,6 @@
 
       if (tabId === 'user-navigation') {
         renderMapPins();
-        generateDirections();
       } else if (tabId === 'user-directory') {
         renderDirectory();
       } else if (tabId === 'admin-locations') {
@@ -1035,20 +1180,22 @@
     }
 
     function updateSelectDropdowns() {
-      [document.getElementById('destLoc'), document.getElementById('dashDestLoc')].forEach(select => {
+      /* Destinations (2D + dashboard + 3D) */
+      [document.getElementById('destLoc'), document.getElementById('dashDestLoc'), document.getElementById('isoDestSel')].forEach(select => {
         if (!select) return;
         const cur = select.value;
         select.innerHTML = '';
         locations.forEach(loc => {
           const opt = document.createElement('option');
           opt.value = loc.id;
-          opt.textContent = `${loc.name} (${loc.building})`;
+          opt.textContent = loc.name;
           select.appendChild(opt);
         });
         if (cur && locations.some(l => l.id === cur)) select.value = cur;
       });
 
-      [document.getElementById('startLoc'), document.getElementById('dashStartLoc')].forEach(select => {
+      /* Start points (2D + dashboard + 3D) */
+      [document.getElementById('startLoc'), document.getElementById('dashStartLoc'), document.getElementById('isoStartSel')].forEach(select => {
         if (!select) return;
         const cur = select.value;
         select.innerHTML =
@@ -1060,18 +1207,17 @@
           opt.textContent = loc.name;
           select.appendChild(opt);
         });
-        if (cur) select.value = cur;
+        if (cur && (cur === 'main_gate' || cur === 'chapel' || locations.some(l => l.id === cur))) select.value = cur;
       });
     }
 
     function quickNavFromDash() {
       const start = document.getElementById('dashStartLoc').value;
       const dest = document.getElementById('dashDestLoc').value;
-
       document.getElementById('startLoc').value = start;
       document.getElementById('destLoc').value = dest;
-
       switchTab('user-navigation', document.querySelectorAll('.user-nav .nav-link')[1]);
+      generateDirections();
     }
 
     function previewLocFile(input) {
@@ -1119,64 +1265,6 @@
 
         container.appendChild(pin);
       });
-    }
-
-    function generateDirections() {
-      const startKey = document.getElementById('startLoc').value;
-      const destId = document.getElementById('destLoc').value;
-      const loc = locations.find(l => l.id === destId);
-
-      if (!loc) return;
-
-      const preview = document.getElementById('destImagePreview');
-      preview.innerHTML = `
-        <h4 style="color:var(--primary);">${loc.name}</h4>
-        <p style="font-size:0.8rem; color:#64748b; margin-bottom:0.5rem;">${loc.building} — ${loc.floor}</p>
-        ${loc.photo ? `<img src="${loc.photo}" style="width:100%; height:160px; object-fit:cover; border-radius:6px;" alt="${loc.name}">` : ''}
-        <p style="font-size:0.85rem; margin-top:0.5rem; color:#334155;">${loc.desc}</p>
-      `;
-
-      const sNode = startNode(startKey);
-      const eNode = destNode(loc);
-      const result = (sNode !== eNode) ? dijkstra(sNode, eNode) : null;
-
-      const stepsList = document.getElementById('routeSteps');
-      stepsList.innerHTML = '';
-
-      if (sNode === eNode) {
-        document.getElementById('routeTitle').textContent = `Route to ${loc.name}`;
-        document.getElementById('routeMeta').textContent = 'You are already at this location.';
-        const li = document.createElement('li');
-        li.textContent = `You are already at ${loc.name}.`;
-        stepsList.appendChild(li);
-        drawRoute(null);
-      } else if (result && result.path.length > 1) {
-        const meters = result.dist * METERS_PER_UNIT;
-        const mins = Math.max(1, Math.round(meters / WALK_M_PER_MIN));
-        document.getElementById('routeTitle').textContent = `Route to ${loc.name}`;
-        document.getElementById('routeMeta').textContent =
-          `Distance ≈ ${Math.round(meters)} m • about ${mins} min walk`;
-        buildSteps(result.path, loc.name).forEach(step => {
-          const li = document.createElement('li');
-          li.textContent = step;
-          stepsList.appendChild(li);
-        });
-        drawRoute(result.path);
-      } else {
-        const steps = (loc.directions && loc.directions[startKey])
-          ? loc.directions[startKey]
-          : (loc.directions && loc.directions['main_gate']) || ['Follow the highlighted path to the destination pin.'];
-        document.getElementById('routeTitle').textContent = `Route to ${loc.name}`;
-        document.getElementById('routeMeta').textContent = `Target: ${loc.building} (${loc.floor})`;
-        steps.forEach(step => {
-          const li = document.createElement('li');
-          li.textContent = step;
-          stepsList.appendChild(li);
-        });
-        drawRoute(null);
-      }
-
-      document.getElementById('routeOutput').style.display = 'block';
     }
 
     function renderDirectory() {
@@ -1356,22 +1444,25 @@
     }
 
     /* =====================================================================
-       ═══ 3D CAMPUS VIEW ═══
-       Isometric renderer built on BLDG footprints + BUILDINGS + ITEMS + G
-       (all from mapdata.js — no changes needed to that file).
+       ═══ 3D CAMPUS VIEW + 3D ROUTING ═══
+       Isometric renderer built on BLDG footprints + BUILDINGS + ITEMS + G.
+       Route is drawn along the same G walkway nodes used by Dijkstra,
+       so the 3D path is geographically accurate to the campus map.
     ===================================================================== */
     const iso = {
       rot: -Math.PI * 0.75, pitch: 0.55, zoom: 1, spin: true,
       scale: 1, baseScale: 1, panX: 0, panY: 0,
       sel: -1, hover: -1, active: false, inited: false,
       cs: Math.cos(-Math.PI * 0.75), sn: Math.sin(-Math.PI * 0.75),
-      lx: -0.55, ly: -0.83, cw: 0, ch: 0
+      lx: -0.55, ly: -0.83, cw: 0, ch: 0,
+      bx0: 0, by0: 0, bx1: 0, by1: 0
     };
     const isoCanvas = document.getElementById('isoCanvas');
     const isoCtx = isoCanvas.getContext('2d');
     let isoFaces = [];
+    let isoStartKey = 'main_gate';   /* 3D planner start (kept in sync with selects) */
+    let isoDestId = null;            /* 3D planner destination location id */
 
-    /* Building heights (map units). Edit these to make buildings taller/shorter. */
     const H3D = { '1': 15, '10': 11, '14': 12, '17': 13, '18': 14, '20': 13, '22': 13, '24': 11, '28': 9, '30': 8, '34': 9, '35': 8, '19b': 9 };
     function isoH(id) { return H3D[id] || 7.5; }
 
@@ -1432,6 +1523,21 @@
       return c;
     }
 
+    /* ---- direction arrow (chevron) along the 3D route ---- */
+    function isoArrow(ax, ay, bx, by) {
+      const ang = Math.atan2(by - ay, bx - ax);
+      const ctx = isoCtx;
+      ctx.save();
+      ctx.translate(ax + (bx - ax) / 2, ay + (by - ay) / 2);
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(5, 0); ctx.lineTo(-3, -3.6); ctx.lineTo(-1, 0); ctx.lineTo(-3, 3.6);
+      ctx.closePath();
+      ctx.fillStyle = '#0f172a';
+      ctx.fill();
+      ctx.restore();
+    }
+
     function isoDraw() {
       if (iso.spin) iso.rot += 0.0032;
       iso.cs = Math.cos(iso.rot); iso.sn = Math.sin(iso.rot);
@@ -1452,7 +1558,7 @@
       ctx.fillStyle = '#e8efe2'; ctx.fill();
       ctx.strokeStyle = '#b9c8ad'; ctx.lineWidth = 1.5; ctx.stroke();
 
-      /* walkway network on the ground */
+      /* walkway network */
       ctx.strokeStyle = 'rgba(0,77,37,0.25)';
       ctx.lineWidth = Math.max(1, 1.4 * iso.scale * 0.55);
       ctx.beginPath();
@@ -1463,35 +1569,37 @@
       });
       ctx.stroke();
 
-      /* active route drawn in 3D */
-      if (lastRoutePath3D && lastRoutePath3D.length > 1) {
+      /* ═══ ACTIVE ROUTE in 3D (accurate: follows the same G nodes as Dijkstra) ═══ */
+      const route = currentRoute;
+      let routeEndPts = null;
+      if (route && route.ok && route.path.length > 1) {
         ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        /* casing */
         ctx.beginPath();
-        lastRoutePath3D.forEach((n, i) => {
-          const p = isoP(G.n[n][0], G.n[n][1], 1.2);
+        route.path.forEach((n, i) => {
+          const p = isoP(G.n[n][0], G.n[n][1], 1.4);
           i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y);
         });
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(3, 3.2 * iso.scale * 0.55); ctx.stroke();
-        ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = Math.max(1.6, 1.9 * iso.scale * 0.55); ctx.stroke();
-        const s = isoP(G.n[lastRoutePath3D[0]][0], G.n[lastRoutePath3D[0]][1], 1.2);
-        const t = isoP(G.n[lastRoutePath3D[lastRoutePath3D.length - 1]][0], G.n[lastRoutePath3D[lastRoutePath3D.length - 1]][1], 1.2);
-        [[s, '#22c55e'], [t, '#ffcc00']].forEach(m => {
-          ctx.beginPath(); ctx.arc(m[0].x, m[0].y, 5, 0, 7);
-          ctx.fillStyle = m[1]; ctx.fill();
-          ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.stroke();
-        });
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = Math.max(3.5, 3.4 * iso.scale * 0.55);
+        ctx.stroke();
+        /* core */
+        ctx.strokeStyle = '#ffcc00';
+        ctx.lineWidth = Math.max(1.8, 1.9 * iso.scale * 0.55);
+        ctx.stroke();
+        /* direction arrows every few nodes */
+        for (let i = 0; i + 1 < route.path.length; i += 2) {
+          const a = isoP(G.n[route.path[i]][0], G.n[route.path[i]][1], 1.4);
+          const b = isoP(G.n[route.path[i + 1]][0], G.n[route.path[i + 1]][1], 1.4);
+          if (Math.hypot(b.x - a.x, b.y - a.y) > 9) isoArrow(a.x, a.y, b.x, b.y);
+        }
+        routeEndPts = [
+          { n: route.path[0], c: '#22c55e' },
+          { n: route.path[route.path.length - 1], c: '#ffcc00' }
+        ];
       }
 
-      /* GPS marker */
-      if (gpsPoint) {
-        const p = isoP(gpsPoint.x, gpsPoint.y, 1.5);
-        const r = 5 + 2 * Math.sin(Date.now() / 300);
-        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7);
-        ctx.fillStyle = '#3b82f6'; ctx.fill();
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
-      }
-
-      /* build all faces (buildings + facility slabs), then painter's-sort */
+      /* build all faces, then painter's-sort */
       const faces = [];
       const labels = [];
       function pushPrism(wc, h, ref, wallC, roofC) {
@@ -1528,12 +1636,16 @@
         pushPrism(wc, 2.2, { kind: 'f' }, [176, 186, 170], [150, 164, 150]);
       });
 
-      /* buildings from BLDG footprints */
+      /* buildings — start roof = green, destination roof = gold, selected = yellow, hover = light */
+      const startB = route ? route.startBIdx : -1;
+      const destB = route ? route.destBIdx : -1;
       BUILDINGS.forEach((b, i) => {
         const wc = [[BLDG[i][0], BLDG[i][1]], [BLDG[i][2], BLDG[i][3]], [BLDG[i][4], BLDG[i][5]], [BLDG[i][6], BLDG[i][7]]];
-        const sel = i === iso.sel, hov = i === iso.hover;
-        const wallC = sel ? [255, 220, 110] : hov ? [210, 226, 238] : [228, 224, 208];
-        const roofC = sel ? [255, 204, 0] : hov ? [46, 148, 96] : [26, 110, 62];
+        let wallC = [228, 224, 208], roofC = [26, 110, 62];
+        if (i === destB) { wallC = [255, 214, 130]; roofC = [217, 119, 6]; }
+        else if (i === startB) { wallC = [190, 235, 200]; roofC = [22, 163, 74]; }
+        else if (i === iso.sel) { wallC = [255, 220, 110]; roofC = [255, 204, 0]; }
+        else if (i === iso.hover) { wallC = [210, 226, 238]; roofC = [46, 148, 96]; }
         pushPrism(wc, isoH(b[0]), { kind: 'b', i: i, id: b[0], name: b[1] }, wallC, roofC);
       });
 
@@ -1546,6 +1658,54 @@
         ctx.strokeStyle = 'rgba(15,23,42,0.25)'; ctx.lineWidth = 0.6; ctx.stroke();
       });
       isoFaces = faces;
+
+      /* ═══ markers drawn AFTER buildings so they're always visible ═══ */
+      function groundMarker(nodeIdx, color) {
+        const p = isoP(G.n[nodeIdx][0], G.n[nodeIdx][1], 1.6);
+        ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, 7);
+        ctx.fillStyle = color; ctx.fill();
+        ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.stroke();
+        return p;
+      }
+      if (route && route.ok) {
+        groundMarker(route.startNodeId, '#22c55e');
+        groundMarker(route.destNodeId, '#ffcc00');
+      }
+      if (gpsPoint) {
+        const p = isoP(gpsPoint.x, gpsPoint.y, 1.8);
+        const r = 5 + 2 * Math.sin(Date.now() / 300);
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7);
+        ctx.fillStyle = '#3b82f6'; ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+      }
+
+      /* floating pin above the destination building */
+      if (route && route.ok && route.destBIdx >= 0) {
+        const b = BUILDINGS[route.destBIdx];
+        const cx = (BLDG[route.destBIdx][0] + BLDG[route.destBIdx][2] + BLDG[route.destBIdx][4] + BLDG[route.destBIdx][6]) / 4;
+        const cy = (BLDG[route.destBIdx][1] + BLDG[route.destBIdx][3] + BLDG[route.destBIdx][5] + BLDG[route.destBIdx][7]) / 4;
+        const top = isoP(cx, cy, isoH(b[0]) + 4);
+        const bob = Math.sin(Date.now() / 350) * 2;
+        ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(top.x, top.y + bob); ctx.lineTo(top.x, top.y - 16 + bob); ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(top.x - 4, top.y - 12 + bob);
+        ctx.lineTo(top.x + 4, top.y - 12 + bob);
+        ctx.lineTo(top.x, top.y - 4 + bob);
+        ctx.closePath();
+        ctx.fillStyle = '#d97706'; ctx.fill();
+        ctx.beginPath(); ctx.arc(top.x, top.y - 20 + bob, 6.5, 0, 7);
+        ctx.fillStyle = '#ffcc00'; ctx.fill();
+        ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.font = '700 10px Segoe UI';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        const tw = ctx.measureText(route.destLabel).width + 12;
+        rrect(top.x - tw / 2, top.y - 40 + bob, tw, 15, 4); ctx.fill();
+        ctx.fillStyle = 'rgba(15,23,42,0.88)';
+        rrect(top.x - tw / 2, top.y - 40 + bob, tw, 15, 4); ctx.fill();
+        ctx.fillStyle = '#ffcc00';
+        ctx.fillText(route.destLabel, top.x, top.y - 26 + bob);
+      }
 
       /* roof labels */
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -1565,7 +1725,6 @@
       });
     }
 
-    /* ---- 3D render loop ---- */
     (function isoLoop() {
       if (iso.active) isoDraw();
       requestAnimationFrame(isoLoop);
@@ -1578,7 +1737,7 @@
       isoSpinBtn();
     }
 
-    /* ---- 3D hit-testing ---- */
+    /* ---- hit-testing ---- */
     function isoPick(e) {
       const rect = isoCanvas.getBoundingClientRect();
       const mx = e.clientX - rect.left, my = e.clientY - rect.top;
@@ -1594,7 +1753,6 @@
       isoCanvas.style.cursor = iso.hover >= 0 ? 'pointer' : 'grab';
     });
 
-    /* ---- 3D orbit / zoom / click controls ---- */
     let isoDrag = null;
     isoCanvas.addEventListener('mousedown', function (e) {
       isoDrag = { x: e.clientX, y: e.clientY, moved: 0 };
@@ -1627,7 +1785,7 @@
     }, { passive: false });
     isoCanvas.addEventListener('dblclick', function () { isoReset(); });
 
-    /* touch support */
+    /* touch */
     isoCanvas.addEventListener('touchstart', function (e) {
       if (e.touches.length === 1) {
         const t = e.touches[0];
@@ -1659,7 +1817,7 @@
       if (iso.active) { isoResize(); isoFit(); }
     });
 
-    /* ---- 3D button handlers ---- */
+    /* ---- camera buttons ---- */
     function isoZoomBtn(f) { iso.zoom = Math.min(3, Math.max(0.4, iso.zoom * f)); }
     function isoRotateBtn(a) { iso.rot += a; }
     function isoToggleSpin() { iso.spin = !iso.spin; isoSpinBtn(); }
@@ -1673,21 +1831,73 @@
       document.getElementById('isoInfoCard').style.display = 'none';
       isoFit();
     }
+
+    /* ---- building click → info card with Set as Start / Destination ---- */
     function isoShowInfo(i) {
       const b = BUILDINGS[i];
       document.getElementById('isoInfoName').textContent = b[1];
       document.getElementById('isoInfoDesc').textContent =
-        'Map reference ' + b[0] + ' • Footprint centre (' + b[2] + ', ' + b[3] + ') on the 740×507 directory. Click the button below to generate walking directions from your selected start point.';
+        'Map reference ' + b[0] + ' • Located at (' + b[2] + ', ' + b[3] + ') on the 740×507 directory. Use the buttons below to plan a route from this building — or to this building.';
       document.getElementById('isoInfoCard').style.display = 'block';
     }
-    function isoRouteToSelected() {
-      if (iso.sel < 0) return;
-      const id = 'ndmc_' + BUILDINGS[iso.sel][0];
-      const sel = document.getElementById('destLoc');
-      const opts = Array.prototype.slice.call(sel.options);
-      if (!opts.some(o => o.value === id)) { alert('Location not found in the directory.'); return; }
-      sel.value = id;
-      switchTab('user-navigation', document.querySelectorAll('.user-nav .nav-link')[1]);
+
+    function isoLocIdForBuildingIdx(i) {
+      const id = 'ndmc_' + BUILDINGS[i][0];
+      return locations.some(l => l.id === id) ? id : null;
+    }
+
+    function isoSetStartFromSel() {
+      if (iso.sel < 0) { alert('Click a building in the 3D view first.'); return; }
+      const locId = isoLocIdForBuildingIdx(iso.sel);
+      if (!locId) { alert('This building is not in the location list.'); return; }
+      isoStartKey = locId;
+      document.getElementById('isoStartSel').value = locId;
+      document.getElementById('startLoc').value = locId;
+      if (isoDestId) isoComputeFromSelects();
+      else alert('Start set to ' + BUILDINGS[iso.sel][1] + '.\nNow click a destination building and choose "Set as Destination & Route".');
+    }
+
+    function isoSetDestFromSel() {
+      if (iso.sel < 0) { alert('Click a building in the 3D view first.'); return; }
+      const locId = isoLocIdForBuildingIdx(iso.sel);
+      if (!locId) { alert('This building is not in the location list.'); return; }
+      isoDestId = locId;
+      document.getElementById('isoDestSel').value = locId;
+      document.getElementById('destLoc').value = locId;
+      isoComputeFromSelects();
+    }
+
+    function isoComputeFromSelects() {
+      isoStartKey = document.getElementById('isoStartSel').value || isoStartKey;
+      isoDestId = document.getElementById('isoDestSel').value || isoDestId;
+      if (!isoDestId) { alert('Choose a destination first.'); return; }
+      const route = computeRoute(isoStartKey, isoDestId);
+      applyRoute(route, { startKey: isoStartKey, destId: isoDestId });
+      isoFocusRoute();
+    }
+
+    /* ---- focus camera on the computed route ---- */
+    function isoFocusRoute() {
+      if (!currentRoute || !currentRoute.ok || !currentRoute.path) return;
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      currentRoute.path.forEach(i => {
+        const p = G.n[i];
+        if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0];
+        if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1];
+      });
+      iso.panX = (x0 + x1) / 2 - MAP_W / 2;
+      iso.panY = (y0 + y1) / 2 - MAP_H / 2;
+      const cs = Math.cos(iso.rot), sn = Math.sin(iso.rot);
+      let rx0 = 1e9, rx1 = -1e9, ry0 = 1e9, ry1 = -1e9;
+      [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].forEach(p => {
+        const dx = p[0] - MAP_W / 2 - iso.panX, dy = p[1] - MAP_H / 2 - iso.panY;
+        const rx = dx * cs - dy * sn, ry = dx * sn + dy * cs;
+        rx0 = Math.min(rx0, rx); rx1 = Math.max(rx1, rx);
+        ry0 = Math.min(ry0, ry); ry1 = Math.max(ry1, ry);
+      });
+      const need = Math.min(iso.cw * 0.6 / Math.max(40, rx1 - rx0), iso.ch * 0.6 / Math.max(40, (ry1 - ry0) * iso.pitch));
+      iso.zoom = Math.min(3, Math.max(0.4, need / iso.baseScale));
+      iso.spin = false; isoSpinBtn();
     }
   </script>
 </body>
