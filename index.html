@@ -3,1364 +3,839 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Tungo - NDMC Campus Navigation & Guide System</title>
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- FontAwesome for Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            ndmc: {
-              green: '#004d25',
-              greenDark: '#003318',
-              gold: '#ffcc00',
-              goldHover: '#e6b800',
-              lightBg: '#f8fafc',
-              slate: '#1e293b'
-            }
-          }
-        }
-      }
-    }
-  </script>
+  <title>Tungo - NDMC Campus Guide & Directions</title>
   <style>
-    /* Custom CSS for interactive map zoom/pan & seamless layout */
+    :root {
+      --primary: #004d25;
+      --secondary: #ffcc00;
+      --dark: #0f172a;
+      --light: #f8fafc;
+      --border: #cbd5e1;
+      --card-bg: #ffffff;
+      --accent: #d97706;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--light); color: var(--dark); min-height: 100vh; display: flex; flex-direction: column; }
+
+    header {
+      background-color: var(--primary);
+      color: white;
+      padding: 1rem 2rem;
+      border-bottom: 4px solid var(--secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .brand { display: flex; align-items: center; gap: 0.75rem; }
+    .brand h1 { font-size: 1.8rem; letter-spacing: 1px; color: var(--secondary); font-weight: 800; }
+    .brand p { font-size: 0.85rem; color: #e2e8f0; }
+
+    .nav-buttons { display: flex; gap: 0.5rem; }
+    .nav-btn {
+      background: transparent;
+      border: 1px solid var(--secondary);
+      color: var(--secondary);
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+    }
+    .nav-btn:hover { background: var(--secondary); color: var(--primary); }
+    .nav-btn.active { background: var(--secondary); color: var(--primary); }
+
+    .view-container { display: none; flex: 1; max-width: 1200px; width: 100%; margin: 1.5rem auto; padding: 0 1rem; }
+    .view-container.active { display: block; }
+
+    /* Landing / Portal View */
+    .portal-box {
+      max-width: 600px;
+      margin: 4rem auto;
+      text-align: center;
+      background: white;
+      padding: 2.5rem;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+    }
+    .portal-box h2 { color: var(--primary); font-size: 2rem; margin-bottom: 0.5rem; }
+    .portal-box p { color: #64748b; margin-bottom: 2rem; font-size: 0.95rem; }
+    .portal-actions { display: flex; flex-direction: column; gap: 1rem; }
+    .btn-large {
+      padding: 1rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.1s ease, background 0.2s ease;
+    }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: #003318; transform: translateY(-1px); }
+    .btn-secondary { background: #f1f5f9; color: var(--dark); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: #e2e8f0; }
+
+    /* Visitor Grid Layout */
+    .visitor-layout { display: grid; grid-template-columns: 1fr 1.5fr; gap: 1.5rem; }
+    @media (max-width: 850px) { .visitor-layout { grid-template-columns: 1fr; } }
+
+    .card {
+      background: white;
+      border-radius: 8px;
+      padding: 1.25rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      border: 1px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 1rem;
+      border-bottom: 2px solid var(--secondary);
+      padding-bottom: 0.4rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: #334155; }
+    select, input, textarea {
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      background-color: #fff;
+    }
+    select:focus, input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+
+    /* Map Viewer */
     .map-container {
-      overflow: hidden;
-      cursor: grab;
       position: relative;
+      width: 100%;
+      height: 380px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: #000;
     }
-    .map-container:active {
-      cursor: grabbing;
+    .map-img { width: 100%; height: 100%; object-fit: cover; }
+    .map-pin {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: #ef4444;
+      border: 2px solid white;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      cursor: pointer;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      transition: transform 0.2s;
     }
-    .map-image {
-      transition: transform 0.1s ease-out;
-      transform-origin: center center;
+    .map-pin:hover { transform: translate(-50%, -50%) scale(1.3); background: var(--secondary); }
+    .map-pin-label {
+      position: absolute;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      white-space: nowrap;
+      pointer-events: none;
     }
-    .pin-marker {
-      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+
+    /* Direction Result Box */
+    .route-result {
+      display: none;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
     }
-    .badge-office { background-color: #e0f2fe; color: #0369a1; }
-    .badge-building { background-color: #dcfce7; color: #15803d; }
-    .badge-room { background-color: #fef3c7; color: #b45309; }
-    .badge-facility { background-color: #f3e8ff; color: #6b21a8; }
-    
-    /* Scrollbar customization */
-    ::-webkit-scrollbar {
-      width: 6px;
-      height: 6px;
+    .route-steps { list-style-type: none; margin-top: 0.75rem; }
+    .route-steps li {
+      position: relative;
+      padding-left: 1.5rem;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      line-height: 1.4;
     }
-    ::-webkit-scrollbar-track {
-      background: #f1f1f1;
+    .route-steps li::before {
+      content: "➔";
+      position: absolute;
+      left: 0;
+      color: var(--primary);
     }
-    ::-webkit-scrollbar-thumb {
-      background: #004d25;
-      border-radius: 3px;
+
+    /* Directory Cards */
+    .dest-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
+    .dest-card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.8rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      background: #fff;
     }
+    .dest-card:hover { border-color: var(--primary); transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+    .dest-card img { width: 100%; height: 100px; object-fit: cover; border-radius: 4px; margin-bottom: 0.5rem; }
+    .dest-card h4 { color: var(--primary); font-size: 0.95rem; margin-bottom: 0.2rem; }
+    .dest-card p { font-size: 0.78rem; color: #64748b; margin-bottom: 0.2rem; }
+
+    .badge { display: inline-block; padding: 0.15rem 0.4rem; font-size: 0.65rem; font-weight: 700; border-radius: 4px; text-transform: uppercase; }
+    .badge-office { background: #e0f2fe; color: #0369a1; }
+    .badge-building { background: #dcfce7; color: #15803d; }
+    .badge-room { background: #fef3c7; color: #b45309; }
+
+    /* Admin Management Table */
+    .admin-table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.85rem; }
+    .admin-table th, .admin-table td { padding: 0.6rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .admin-table th { background: #f1f5f9; font-weight: 700; color: var(--dark); }
+    .action-btn { padding: 0.25rem 0.5rem; font-size: 0.75rem; border: none; border-radius: 4px; cursor: pointer; margin-right: 0.2rem; }
+    .btn-edit { background: #3b82f6; color: white; }
+    .btn-delete { background: #ef4444; color: white; }
+
+    /* Modal */
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
+    .modal.active { display: flex; }
+    .modal-content { background: white; padding: 1.5rem; border-radius: 8px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
+
+    footer { text-align: center; padding: 1rem; background: #fff; border-top: 1px solid var(--border); font-size: 0.8rem; color: #64748b; margin-top: auto; }
   </style>
 </head>
-<body class="bg-slate-100 text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-ndmc-gold selection:text-ndmc-green">
+<body>
 
-  <!-- Main Header -->
-  <header class="bg-ndmc-green text-white shadow-lg border-b-4 border-ndmc-gold sticky top-0 z-40">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex justify-between items-center">
-      <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateTo('home')">
-        <div class="w-11 h-11 bg-ndmc-gold rounded-full flex items-center justify-center font-bold text-ndmc-green text-xl shadow border-2 border-white">
-          <i class="fa-solid font-bold fa-compass text-2xl"></i>
-        </div>
-        <div>
-          <h1 class="text-2xl font-black tracking-wider leading-none text-white">TUNGO</h1>
-          <p class="text-xs text-ndmc-gold font-medium tracking-wide">Notre Dame of Midsayap College Guide</p>
-        </div>
+  <header>
+    <div class="brand">
+      <h1>TUNGO</h1>
+      <div>
+        <p>Notre Dame of Midsayap College</p>
+        <p style="font-size: 0.7rem; color: var(--secondary);">Campus Navigation & Information System</p>
       </div>
-
-      <!-- Header Quick Actions -->
-      <div class="flex items-center space-x-2 sm:space-x-4">
-        <button id="navExploreBtn" onclick="navigateTo('explorer')" class="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold bg-white/10 hover:bg-white/20 transition">
-          <i class="fa-solid fa-map-location-dot"></i>
-          <span>Campus Guide</span>
-        </button>
-
-        <div id="userModeIndicator" class="flex items-center bg-ndmc-greenDark px-3 py-1.5 rounded-lg border border-white/20 text-xs font-medium">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 mr-2 animate-pulse"></span>
-          <span id="modeText" class="text-slate-100">Visitor Mode</span>
-        </div>
-
-        <button id="adminAuthBtn" onclick="openAdminModal()" class="bg-ndmc-gold hover:bg-ndmc-goldHover text-ndmc-green font-bold px-3.5 py-1.5 rounded-lg text-sm shadow transition flex items-center space-x-1.5">
-          <i class="fa-solid fa-lock"></i>
-          <span id="adminBtnLabel">Admin Login</span>
-        </button>
-      </div>
+    </div>
+    <div class="nav-buttons">
+      <button class="nav-btn active" onclick="switchView('portal')">Portal Home</button>
+      <button class="nav-btn" onclick="switchView('visitor')">Visitor / Freshman</button>
+      <button class="nav-btn" id="adminNavBtn" onclick="openAdminLogin()">Admin Login</button>
     </div>
   </header>
 
-  <!-- Notification Toast Container -->
-  <div id="toast" class="fixed top-20 right-5 z-50 transform translate-x-full transition-transform duration-300 ease-in-out max-w-md bg-white border-l-4 border-ndmc-green shadow-xl rounded-r-lg p-4 flex items-start space-x-3 pointer-events-none">
-    <div id="toastIcon" class="text-ndmc-green text-xl pt-0.5"><i class="fa-solid fa-circle-check"></i></div>
-    <div class="flex-1">
-      <h4 id="toastTitle" class="font-bold text-sm text-slate-800">Notification</h4>
-      <p id="toastMessage" class="text-xs text-slate-600 mt-0.5">Action completed successfully.</p>
+  <!-- PORTAL VIEW -->
+  <div id="view-portal" class="view-container active">
+    <div class="portal-box">
+      <h2>Welcome to Tungo</h2>
+      <p>Your official guide to navigating Notre Dame of Midsayap College buildings, offices, and facilities.</p>
+      <div class="portal-actions">
+        <button class="btn-large btn-primary" onclick="switchView('visitor')">START / GO (Freshmen & Visitors)</button>
+        <button class="btn-large btn-secondary" onclick="openAdminLogin()">Administrator Login</button>
+      </div>
     </div>
   </div>
 
-  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-
-    <!-- 1. HOME / LANDING SCREEN -->
-    <section id="viewHome" class="space-y-8 my-auto">
-      <div class="relative bg-gradient-to-r from-ndmc-green to-emerald-900 rounded-3xl p-8 sm:p-12 text-white shadow-2xl overflow-hidden border-2 border-ndmc-gold/40">
-        <div class="absolute -right-10 -bottom-10 opacity-10 text-white pointer-events-none">
-          <i class="fa-solid fa-school text-[280px]"></i>
-        </div>
-        <div class="relative z-10 max-w-2xl space-y-4">
-          <span class="bg-ndmc-gold text-ndmc-green font-extrabold text-xs px-3 py-1 rounded-full uppercase tracking-wider">Official NDMC Navigation Portal</span>
-          <h2 class="text-3xl sm:text-5xl font-black leading-tight">Welcome to NDMC Campus Guide!</h2>
-          <p class="text-slate-200 text-sm sm:text-base font-light leading-relaxed">
-            "Tungo" helps freshmens, students, and visitors effortlessly navigate Notre Dame of Midsayap College buildings, offices, classrooms, and facilities with step-by-step guidance and interactive visual campus maps.
-          </p>
-          <div class="pt-4 flex flex-col sm:flex-row gap-4">
-            <button onclick="navigateTo('explorer')" class="bg-ndmc-gold hover:bg-ndmc-goldHover text-ndmc-green font-black text-lg px-8 py-3.5 rounded-xl shadow-lg hover:shadow-xl transition transform active:scale-95 flex items-center justify-center space-x-2">
-              <span>Start / Go Explore</span>
-              <i class="fa-solid fa-arrow-right"></i>
-            </button>
-            <button onclick="openAdminModal()" class="bg-white/10 hover:bg-white/20 border border-white/30 text-white font-semibold text-base px-6 py-3.5 rounded-xl transition flex items-center justify-center space-x-2">
-              <i class="fa-solid fa-user-shield"></i>
-              <span>Administrator Portal</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Quick Feature Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex space-x-4 items-start">
-          <div class="w-12 h-12 bg-emerald-100 text-ndmc-green rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i class="fa-solid fa-route"></i>
-          </div>
-          <div>
-            <h3 class="font-bold text-slate-800">Step-by-Step Directions</h3>
-            <p class="text-xs text-slate-500 mt-1">Get custom route instructions from any campus landmark to your target office or classroom.</p>
-          </div>
-        </div>
-
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex space-x-4 items-start">
-          <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i class="fa-solid fa-map-marked-alt"></i>
-          </div>
-          <div>
-            <h3 class="font-bold text-slate-800">Interactive Map Viewer</h3>
-            <p class="text-xs text-slate-500 mt-1">Zoom and pan through the high-resolution campus map with highlighted destination pins.</p>
-          </div>
-        </div>
-
-        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex space-x-4 items-start">
-          <div class="w-12 h-12 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center text-xl shrink-0">
-            <i class="fa-solid fa-building-user"></i>
-          </div>
-          <div>
-            <h3 class="font-bold text-slate-800">Complete Directory</h3>
-            <p class="text-xs text-slate-500 mt-1">Browse and search all NDMC colleges, administrative offices, and student services.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- 2. FRESHMEN / VISITOR EXPLORER VIEW -->
-    <section id="viewExplorer" class="hidden space-y-6">
+  <!-- VISITOR VIEW -->
+  <div id="view-visitor" class="view-container">
+    <div class="visitor-layout">
       
-      <!-- Top Action Bar -->
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-        <div>
-          <h2 class="text-xl font-bold text-ndmc-green flex items-center gap-2">
-            <i class="fa-solid fa-compass"></i>
-            <span>Freshmen & Visitor Guide</span>
-          </h2>
-          <p class="text-xs text-slate-500">Search locations or choose a starting point to get direct instructions.</p>
-        </div>
-
-        <div class="flex items-center gap-2">
-          <!-- View Tab Switcher -->
-          <div class="bg-slate-100 p-1 rounded-xl flex border border-slate-200 text-xs font-semibold">
-            <button id="tabBtnDirections" onclick="switchExplorerTab('directions')" class="px-4 py-2 rounded-lg bg-white text-ndmc-green shadow-sm transition">
-              <i class="fa-solid fa-turn-up mr-1"></i> Directions
-            </button>
-            <button id="tabBtnMap" onclick="switchExplorerTab('map')" class="px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition">
-              <i class="fa-solid fa-map mr-1"></i> Interactive Map
-            </button>
-            <button id="tabBtnDirectory" onclick="switchExplorerTab('directory')" class="px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition">
-              <i class="fa-solid fa-list mr-1"></i> Directory
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- TAB 1: DIRECTIONS FINDER -->
-      <div id="tabContentDirections" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Controls Column -->
-        <div class="lg:col-span-4 space-y-6">
-          <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-            <h3 class="font-bold text-slate-800 text-base border-b pb-2 border-slate-100 flex items-center justify-between">
-              <span>Path Finder</span>
-              <span class="text-xs bg-emerald-100 text-ndmc-green font-semibold px-2 py-0.5 rounded">Quick Route</span>
-            </h3>
-
-            <!-- Starting Point Dropdown -->
-            <div>
-              <label for="startPointSelect" class="block text-xs font-bold text-slate-700 uppercase mb-1">Starting Point:</label>
-              <div class="relative">
-                <select id="startPointSelect" onchange="calculateRoute()" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-ndmc-green">
-                  <option value="main_gate">Main Gate (Entrance - Poblacion)</option>
-                  <option value="back_gate">Back Extension Gate</option>
-                  <option value="quadrangle">Main Quadrangle Plaza</option>
-                  <option value="canteen">College Canteen / Cafeteria</option>
-                  <option value="gymnasium">NDMC Gymnasium</option>
-                </select>
-              </div>
-            </div>
-
-            <!-- Destination Dropdown -->
-            <div>
-              <label for="destinationSelect" class="block text-xs font-bold text-slate-700 uppercase mb-1">Destination:</label>
-              <select id="destinationSelect" onchange="calculateRoute()" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-ndmc-green">
-                <!-- Dynamically Populated -->
-              </select>
-            </div>
-
-            <button onclick="calculateRoute()" class="w-full bg-ndmc-green hover:bg-ndmc-greenDark text-white font-bold py-3 px-4 rounded-xl shadow transition flex items-center justify-center space-x-2">
-              <i class="fa-solid fa-location-arrow"></i>
-              <span>Get Directions & Details</span>
-            </button>
-          </div>
-
-          <!-- Selected Location Summary Card -->
-          <div id="locationMetaCard" class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-3">
-            <h4 class="text-xs font-bold uppercase text-slate-400 tracking-wider">Destination Preview</h4>
-            <div id="destImageContainer" class="w-full h-40 bg-slate-100 rounded-xl overflow-hidden relative border border-slate-200">
-              <img id="destImage" src="" alt="Destination Photo" class="w-full h-full object-cover"/>
-              <span id="destCategoryBadge" class="absolute top-2 right-2 px-2.5 py-1 rounded-full text-xs font-bold shadow-sm"></span>
-            </div>
-            <div>
-              <h3 id="destTitle" class="text-lg font-bold text-ndmc-green"></h3>
-              <p id="destSubtitle" class="text-xs font-semibold text-slate-500"></p>
-            </div>
-            <p id="destDescription" class="text-xs text-slate-600 leading-relaxed"></p>
-          </div>
-        </div>
-
-        <!-- Directions Display Column -->
-        <div class="lg:col-span-8 space-y-6">
-          <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 min-h-[420px] flex flex-col">
-            <div class="flex items-center justify-between border-b pb-4 border-slate-100">
-              <div>
-                <h3 id="routeHeaderTitle" class="text-xl font-black text-slate-800">Turn-by-Turn Route</h3>
-                <p id="routeHeaderSub" class="text-xs text-slate-500 mt-0.5">Follow instructions step-by-step from start to destination.</p>
-              </div>
-              <button onclick="switchExplorerTab('map')" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2 rounded-lg transition flex items-center space-x-1">
-                <i class="fa-solid fa-map-location"></i>
-                <span>View on Map</span>
-              </button>
-            </div>
-
-            <!-- Steps List -->
-            <div class="flex-1 py-6">
-              <ol id="routeStepsList" class="relative border-l-2 border-emerald-200 ml-4 space-y-6">
-                <!-- Dynamically filled with step items -->
-              </ol>
-            </div>
-
-            <!-- Helpful tips banner -->
-            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start space-x-3 text-xs text-amber-800">
-              <i class="fa-solid fa-lightbulb text-amber-500 text-base mt-0.5"></i>
-              <p><strong>Freshman Tip:</strong> If you feel lost at any point on campus, look for security posts at the gates or visit the Information Desk at the Administration Building Ground Floor.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- TAB 2: INTERACTIVE CAMPUS MAP VIEWER -->
-      <div id="tabContentMap" class="hidden space-y-4">
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center space-x-2">
-            <i class="fa-solid fa-map-pin text-ndmc-green"></i>
-            <span class="text-sm font-bold text-slate-800">Campus Visual Map Viewer</span>
-            <span id="mapPinLabel" class="text-xs bg-emerald-100 text-ndmc-green px-2.5 py-0.5 rounded-full font-semibold">All Locations</span>
-          </div>
-          <div class="flex items-center space-x-2">
-            <button onclick="zoomMap(0.15)" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 transition flex items-center justify-center">
-              <i class="fa-solid fa-plus"></i>
-            </button>
-            <button onclick="zoomMap(-0.15)" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 font-bold text-slate-700 transition flex items-center justify-center">
-              <i class="fa-solid fa-minus"></i>
-            </button>
-            <button onclick="resetMapZoom()" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition">
-              Reset View
-            </button>
-          </div>
-        </div>
-
-        <!-- Map Screen -->
-        <div class="bg-slate-900 rounded-2xl border border-slate-300 shadow-inner overflow-hidden h-[520px] relative">
-          <div id="mapViewport" class="map-container w-full h-full flex items-center justify-center">
-            <div id="mapTransformLayer" class="relative map-image">
-              <!-- Campus Map Image -->
-              <img id="campusMapImg" src="https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=1200&q=80" alt="NDMC Campus Map" class="max-w-none w-[900px] h-auto rounded shadow-2xl select-none" draggable="false"/>
-              
-              <!-- Pin Overlay Canvas -->
-              <div id="mapPinsOverlay" class="absolute inset-0 pointer-events-none">
-                <!-- Pins injected here via JS -->
-              </div>
-            </div>
-          </div>
-
-          <div class="absolute bottom-4 left-4 bg-slate-900/80 backdrop-blur text-white text-xs px-3 py-1.5 rounded-lg pointer-events-none flex items-center space-x-2">
-            <i class="fa-solid fa-hand-pointer text-ndmc-gold"></i>
-            <span>Drag to pan | Scroll or use + / - buttons to zoom</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- TAB 3: DIRECTORY SEARCH & LIST -->
-      <div id="tabContentDirectory" class="hidden space-y-6">
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-          <div class="flex flex-col sm:flex-row gap-4 justify-between items-center">
-            <div class="relative w-full sm:w-96">
-              <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 text-sm"></i>
-              <input type="text" id="dirSearchInput" oninput="renderVisitorDirectory()" placeholder="Search buildings, offices, rooms, floors..." class="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-ndmc-green"/>
-            </div>
-
-            <!-- Filter Category Buttons -->
-            <div class="flex flex-wrap gap-2 text-xs font-medium w-full sm:w-auto">
-              <button onclick="filterDirCategory('all')" id="catBtnAll" class="px-3 py-2 rounded-lg bg-ndmc-green text-white font-bold transition">All</button>
-              <button onclick="filterDirCategory('building')" id="catBtnBuilding" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Buildings</button>
-              <button onclick="filterDirCategory('office')" id="catBtnOffice" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Offices</button>
-              <button onclick="filterDirCategory('room')" id="catBtnRoom" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Rooms/Labs</button>
-              <button onclick="filterDirCategory('facility')" id="catBtnFacility" class="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition">Facilities</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Directory Grid -->
-        <div id="directoryGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <!-- Dynamically Injected -->
-        </div>
-      </div>
-
-    </section>
-
-    <!-- 3. ADMINISTRATOR MODE VIEW -->
-    <section id="viewAdmin" class="hidden space-y-6">
-      
-      <!-- Admin Header Banner -->
-      <div class="bg-gradient-to-r from-slate-900 to-ndmc-green text-white p-6 rounded-2xl shadow-md border-b-4 border-ndmc-gold flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div class="flex items-center space-x-2">
-            <span class="bg-ndmc-gold text-ndmc-green font-black text-xs px-2.5 py-0.5 rounded uppercase">Admin Control Mode</span>
-            <span class="text-xs text-slate-300">Logged in as <strong>Admin</strong></span>
-          </div>
-          <h2 class="text-2xl font-black mt-1">NDMC Campus Data Management</h2>
-          <p class="text-xs text-slate-300">Create, edit, update, or remove buildings, offices, rooms, map images, and navigation instructions.</p>
-        </div>
-
-        <div class="flex items-center gap-3">
-          <button onclick="openAddLocationModal()" class="bg-ndmc-gold hover:bg-ndmc-goldHover text-ndmc-green font-extrabold text-sm px-4 py-2.5 rounded-xl shadow transition flex items-center space-x-1.5">
-            <i class="fa-solid fa-plus"></i>
-            <span>Add New Location</span>
-          </button>
-          <button onclick="resetToDefaultData()" class="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold text-xs px-3 py-2.5 rounded-xl transition" title="Restore original college data">
-            <i class="fa-solid fa-rotate-left mr-1"></i> Reset Data
-          </button>
-          <button onclick="logoutAdmin()" class="bg-red-600/80 hover:bg-red-600 text-white font-semibold text-xs px-3 py-2.5 rounded-xl transition">
-            <i class="fa-solid fa-right-from-bracket mr-1"></i> Logout
-          </button>
-        </div>
-      </div>
-
-      <!-- Campus Map Image Config Card -->
-      <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-4">
-        <h3 class="font-bold text-slate-800 text-base flex items-center space-x-2 border-b pb-3 border-slate-100">
-          <i class="fa-solid fa-map text-ndmc-green"></i>
-          <span>Global Campus Map Image Settings</span>
-        </h3>
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-          <div class="md:col-span-8">
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Campus Map Image URL:</label>
-            <input type="text" id="adminMapUrlInput" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-ndmc-green" placeholder="https://example.com/ndmc-map.jpg"/>
-          </div>
-          <div class="md:col-span-4 flex items-center space-x-2 pt-5">
-            <button onclick="saveCampusMapUrl()" class="w-full bg-ndmc-green hover:bg-ndmc-greenDark text-white font-bold py-2 px-4 rounded-xl text-sm transition">
-              Save Map Image URL
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Admin Data Table -->
-      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <h3 class="font-bold text-slate-800 text-base flex items-center space-x-2">
-            <i class="fa-solid fa-database text-ndmc-green"></i>
-            <span>Registered Campus Locations & Offices</span>
-          </h3>
-          <div class="w-full sm:w-64">
-            <input type="text" id="adminSearchInput" oninput="renderAdminTable()" placeholder="Filter records..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-ndmc-green"/>
-          </div>
-        </div>
-
-        <div class="overflow-x-auto">
-          <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="bg-slate-50 text-slate-500 font-bold text-xs uppercase border-b border-slate-200">
-                <th class="p-4">Photo</th>
-                <th class="p-4">Name & Code</th>
-                <th class="p-4">Category</th>
-                <th class="p-4">Building & Floor</th>
-                <th class="p-4">Map Coordinates</th>
-                <th class="p-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="adminTableBody" class="divide-y divide-slate-100 text-xs">
-              <!-- Dynamically Populated -->
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </section>
-
-  </main>
-
-  <!-- MODAL 1: ADMIN LOGIN -->
-  <div id="modalAdminLogin" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4">
-    <div class="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 border border-slate-200 transform transition-all">
-      <div class="text-center space-y-2 mb-6">
-        <div class="w-14 h-14 bg-emerald-100 text-ndmc-green rounded-2xl flex items-center justify-center mx-auto text-2xl font-bold">
-          <i class="fa-solid fa-shield-halved"></i>
-        </div>
-        <h3 class="text-2xl font-black text-slate-800">Administrator Access</h3>
-        <p class="text-xs text-slate-500">Enter system credentials to access NDMC control panel.</p>
-      </div>
-
-      <form onsubmit="handleAdminLogin(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Username</label>
-          <div class="relative">
-            <i class="fa-solid fa-user absolute left-3.5 top-3 text-slate-400 text-sm"></i>
-            <input type="text" id="adminUser" required placeholder="Admin" class="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ndmc-green"/>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Password</label>
-          <div class="relative">
-            <i class="fa-solid fa-key absolute left-3.5 top-3 text-slate-400 text-sm"></i>
-            <input type="password" id="adminPass" required placeholder="••••••••" class="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ndmc-green"/>
-          </div>
-          <p class="text-[10px] text-slate-400 mt-1">Default credentials: User: <strong>Admin</strong> | Pass: <strong>pass123</strong></p>
-        </div>
-
-        <div class="pt-2 flex space-x-3">
-          <button type="button" onclick="closeAdminModal()" class="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-sm transition">
-            Cancel
-          </button>
-          <button type="submit" class="w-1/2 bg-ndmc-green hover:bg-ndmc-greenDark text-white font-bold py-3 rounded-xl text-sm shadow transition">
-            Log In
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- MODAL 2: ADD / EDIT LOCATION & DIRECTIONS -->
-  <div id="modalLocationEditor" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-white rounded-3xl shadow-2xl max-w-2xl w-full p-6 sm:p-8 border border-slate-200 my-8">
-      <div class="flex justify-between items-center border-b pb-4 border-slate-100">
-        <h3 id="editorModalTitle" class="text-xl font-black text-ndmc-green flex items-center space-x-2">
-          <i class="fa-solid fa-pen-to-square"></i>
-          <span>Add New Location</span>
-        </h3>
-        <button onclick="closeLocationEditorModal()" class="text-slate-400 hover:text-slate-600 text-lg">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-
-      <form onsubmit="handleSaveLocation(event)" class="space-y-4 mt-4">
-        <input type="hidden" id="editLocationId"/>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Name / Title *</label>
-            <input type="text" id="formName" required placeholder="e.g., Registrar's Office" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-ndmc-green"/>
-          </div>
-
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Category *</label>
-            <select id="formCategory" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-ndmc-green">
-              <option value="office">Office</option>
-              <option value="building">Building</option>
-              <option value="room">Room / Lab</option>
-              <option value="facility">Facility / Amenity</option>
+      <!-- Direction Controller -->
+      <div>
+        <div class="card">
+          <div class="card-title">Direction & Route Finder</div>
+          
+          <div class="form-group">
+            <label for="startLoc">Select Starting Location:</label>
+            <select id="startLoc">
+              <option value="main_gate">Main Entrance Gate (Notre Dame Ave)</option>
+              <option value="chapel">NDMC Chapel</option>
+              <option value="boyd_bldg">Fr. Joseph Boyd Building</option>
+              <option value="madonna_bldg">Madonna Building</option>
             </select>
           </div>
-        </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Building Name *</label>
-            <input type="text" id="formBuilding" required placeholder="e.g., Administration Building" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-ndmc-green"/>
+          <div class="form-group">
+            <label for="destLoc">Select Destination:</label>
+            <select id="destLoc"></select>
           </div>
 
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Floor / Room Number *</label>
-            <input type="text" id="formFloor" required placeholder="e.g., Ground Floor, Room 101" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-ndmc-green"/>
-          </div>
-        </div>
+          <button class="btn-large btn-primary" style="width:100%; font-size: 0.95rem; padding: 0.7rem;" onclick="generateDirections()">Get Directions & Guide</button>
 
-        <div>
-          <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Description / Services Offered</label>
-          <textarea id="formDesc" rows="2" placeholder="Brief explanation of what happens here..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-ndmc-green"></textarea>
-        </div>
-
-        <!-- Image Upload / Link Section -->
-        <div class="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3">
-          <label class="block text-xs font-bold text-slate-700 uppercase">Location Image / Photo</label>
-          <div class="flex flex-col sm:flex-row gap-3 items-center">
-            <input type="text" id="formImageUrl" placeholder="Paste Image URL or choose file ->" class="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-ndmc-green"/>
-            <span class="text-xs text-slate-400 font-bold uppercase">OR</span>
-            <label class="cursor-pointer bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1">
-              <i class="fa-solid fa-upload"></i>
-              <span>Upload File</span>
-              <input type="file" id="formImageFile" accept="image/*" onchange="handleImageFileUpload(event)" class="hidden"/>
-            </label>
+          <div id="routeOutput" class="route-result">
+            <h3 id="routeTitle" style="color: var(--primary); font-size: 1rem;"></h3>
+            <p id="routeMeta" style="font-size: 0.8rem; color: #475569; margin-top: 0.2rem;"></p>
+            <ol id="routeSteps" class="route-steps"></ol>
           </div>
         </div>
 
-        <!-- Map Pin Coordinates -->
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Map Position X (%)</label>
-            <input type="number" id="formMapX" min="0" max="100" value="50" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm"/>
+        <div class="card">
+          <div class="card-title">Location Preview</div>
+          <div id="destImagePreview" style="text-align:center;">
+            <p style="color:#64748b; font-size:0.85rem;">Select a destination to preview photos.</p>
           </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Map Position Y (%)</label>
-            <input type="number" id="formMapY" min="0" max="100" value="50" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-sm"/>
+        </div>
+      </div>
+
+      <!-- Campus Map & Directory -->
+      <div>
+        <div class="card">
+          <div class="card-title">
+            <span>NDMC Campus Satellite Map</span>
+            <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">Click pin to inspect location</span>
+          </div>
+          <div class="map-container" id="mapContainer">
+            <img id="campusMapImg" src="" class="map-img" alt="NDMC Campus Map">
+            <div id="mapPins"></div>
           </div>
         </div>
 
-        <!-- Directions Configuration -->
-        <div class="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
-          <h4 class="text-xs font-bold text-slate-800 uppercase flex items-center justify-between">
-            <span>Navigation Steps from Starting Points</span>
-            <span class="text-[10px] text-slate-500 lowercase font-normal">(separate steps with new lines)</span>
-          </h4>
-
-          <div class="space-y-2">
-            <label class="block text-[11px] font-bold text-slate-600">From Main Gate (Entrance):</label>
-            <textarea id="dirFromMainGate" rows="2" class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs" placeholder="Step 1...&#10;Step 2..."></textarea>
+        <div class="card">
+          <div class="card-title">
+            <span>Campus Directory</span>
+            <input type="text" id="dirSearch" placeholder="Search building, office, room..." oninput="renderDirectory()" style="width: 200px; padding: 0.3rem 0.5rem; font-size: 0.8rem;">
           </div>
-
-          <div class="space-y-2">
-            <label class="block text-[11px] font-bold text-slate-600">From Main Quadrangle:</label>
-            <textarea id="dirFromQuad" rows="2" class="w-full bg-white border border-slate-300 rounded-lg p-2 text-xs" placeholder="Step 1...&#10;Step 2..."></textarea>
-          </div>
+          <div id="directoryGrid" class="dest-grid"></div>
         </div>
+      </div>
 
-        <div class="pt-4 flex justify-end space-x-3 border-t border-slate-100">
-          <button type="button" onclick="closeLocationEditorModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-sm transition">
-            Cancel
-          </button>
-          <button type="submit" class="bg-ndmc-green hover:bg-ndmc-greenDark text-white font-bold px-6 py-2.5 rounded-xl text-sm shadow transition">
-            Save Location
-          </button>
-        </div>
-      </form>
     </div>
   </div>
 
-  <!-- Footer -->
-  <footer class="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 mt-auto">
-    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
-      <p>&copy; 2026 <strong>Tungo Navigation System</strong> — Notre Dame of Midsayap College.</p>
-      <div class="flex items-center space-x-4">
-        <a href="javascript:void(0)" onclick="navigateTo('explorer')" class="hover:underline">Campus Guide</a>
-        <span>•</span>
-        <a href="javascript:void(0)" onclick="openAdminModal()" class="hover:underline">Admin Portal</a>
+  <!-- ADMIN PANEL VIEW -->
+  <div id="view-admin" class="view-container">
+    <div class="card">
+      <div class="card-title">
+        <span>Administrator Control Center</span>
+        <div>
+          <button class="nav-btn" style="background:var(--primary); color:white;" onclick="openLocationModal()">+ Add New Location</button>
+          <button class="nav-btn" style="background:#475569; color:white;" onclick="openMapConfigModal()">Edit Map URL</button>
+          <button class="nav-btn" style="border-color:#ef4444; color:#ef4444;" onclick="logoutAdmin()">Logout</button>
+        </div>
+      </div>
+      <p style="font-size:0.85rem; color:#64748b; margin-bottom: 1rem;">Manage buildings, offices, floor levels, rooms, photo URLs, map pins, and directional guides.</p>
+
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Building / Floor</th>
+            <th>Map Coordinates (X%, Y%)</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="adminTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- LOGIN MODAL -->
+  <div id="loginModal" class="modal">
+    <div class="modal-content">
+      <h3 style="color:var(--primary); margin-bottom: 1rem;">Admin Login</h3>
+      <div class="form-group">
+        <label>Username:</label>
+        <input type="text" id="loginUser" placeholder="Enter username">
+      </div>
+      <div class="form-group">
+        <label>Password:</label>
+        <input type="password" id="loginPass" placeholder="Enter password">
+      </div>
+      <p id="loginError" style="color:red; font-size:0.8rem; display:none; margin-bottom:0.5rem;">Invalid credentials!</p>
+      <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+        <button class="nav-btn" style="border-color:#64748b; color:#64748b;" onclick="closeModal('loginModal')">Cancel</button>
+        <button class="nav-btn" style="background:var(--primary); color:white;" onclick="processLogin()">Login</button>
       </div>
     </div>
+  </div>
+
+  <!-- LOCATION FORM MODAL (ADD / EDIT) -->
+  <div id="locationModal" class="modal">
+    <div class="modal-content">
+      <h3 id="modalFormTitle" style="color:var(--primary); margin-bottom: 1rem;">Add Location</h3>
+      <input type="hidden" id="editLocId">
+      
+      <div class="form-group">
+        <label>Location / Room / Office Name:</label>
+        <input type="text" id="locName" required>
+      </div>
+      
+      <div class="form-group">
+        <label>Category Type:</label>
+        <select id="locCategory">
+          <option value="office">Office</option>
+          <option value="building">Building</option>
+          <option value="room">Room / Lab</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label>Building / Block Name:</label>
+        <input type="text" id="locBuilding" required>
+      </div>
+
+      <div class="form-group">
+        <label>Floor / Room Level:</label>
+        <input type="text" id="locFloor" placeholder="e.g. Ground Floor, Room 204">
+      </div>
+
+      <div class="form-group">
+        <label>Photo / Image URL:</label>
+        <input type="text" id="locPhoto" placeholder="https://example.com/photo.jpg">
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem;">
+        <div class="form-group">
+          <label>Map X Position (%) [0-100]:</label>
+          <input type="number" id="locPinX" min="0" max="100" value="50">
+        </div>
+        <div class="form-group">
+          <label>Map Y Position (%) [0-100]:</label>
+          <input type="number" id="locPinY" min="0" max="100" value="50">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Description:</label>
+        <textarea id="locDesc" rows="2"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Directions from Main Gate (1 per line):</label>
+        <textarea id="dirMainGate" rows="2"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Directions from NDMC Chapel (1 per line):</label>
+        <textarea id="dirChapel" rows="2"></textarea>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-top:1rem;">
+        <button class="nav-btn" style="border-color:#64748b; color:#64748b;" onclick="closeModal('locationModal')">Cancel</button>
+        <button class="nav-btn" style="background:var(--primary); color:white;" onclick="saveLocation()">Save Location</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP CONFIG MODAL -->
+  <div id="mapModal" class="modal">
+    <div class="modal-content">
+      <h3 style="color:var(--primary); margin-bottom: 1rem;">Update Campus Map URL</h3>
+      <div class="form-group">
+        <label>Map Image URL:</label>
+        <input type="text" id="mapUrlInput">
+      </div>
+      <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+        <button class="nav-btn" style="border-color:#64748b; color:#64748b;" onclick="closeModal('mapModal')">Cancel</button>
+        <button class="nav-btn" style="background:var(--primary); color:white;" onclick="saveMapUrl()">Save Map</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 Tungo Campus Navigation System | Notre Dame of Midsayap College</p>
   </footer>
 
   <script>
-    /* ==========================================================================
-       NDMC INITIAL DATASET & LOCALSTORAGE
-       ========================================================================== */
-    const DEFAULT_MAP_URL = "https://images.unsplash.com/photo-1526778548025-fa2f459cd5c1?auto=format&fit=crop&w=1200&q=80";
+    // System Initial Dataset (Points directly to local image.png)
+    const defaultMapUrl = "./image.png";
 
-    const INITIAL_CAMPUS_DATA = [
+    const defaultLocations = [
       {
-        id: "loc_registrar",
+        id: "boyd_bldg",
+        name: "Fr. Joseph Boyd Building",
+        category: "building",
+        building: "Fr. Joseph Boyd Building",
+        floor: "Ground & Upper Floors",
+        photo: "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=500&q=80",
+        pinX: 20,
+        pinY: 12,
+        desc: "Main academic building housing key administrative and college departments.",
+        directions: {
+          main_gate: [
+            "Enter through the Main Entrance Gate along Notre Dame Avenue.",
+            "Head north along the western pathway.",
+            "The Fr. Joseph Boyd Building is on your left hand side near the top corner of the quad field."
+          ],
+          chapel: [
+            "Exit the Chapel and turn left (west).",
+            "Walk straight for 30 meters; Fr. Joseph Boyd Building will be directly ahead."
+          ]
+        }
+      },
+      {
+        id: "chapel",
+        name: "NDMC Chapel",
+        category: "building",
+        building: "NDMC Chapel",
+        floor: "Ground Floor",
+        photo: "https://images.unsplash.com/photo-1548625149-fc4a29cf7092?auto=format&fit=crop&w=500&q=80",
+        pinX: 38,
+        pinY: 10,
+        desc: "Campus chapel for spiritual services, mass, and quiet prayer.",
+        directions: {
+          main_gate: [
+            "Enter through the Main Entrance Gate.",
+            "Follow the central north-bound pathway straight toward the top perimeter.",
+            "The NDMC Chapel is located prominently along the top central campus area."
+          ],
+          chapel: [
+            "You are currently at the NDMC Chapel."
+          ]
+        }
+      },
+      {
+        id: "registrar",
         name: "Registrar's Office",
         category: "office",
-        building: "Administration Building",
-        floor: "Ground Floor",
-        desc: "Handles student transcript requests, enrollment validation, certifications, and student record clearances.",
-        imageUrl: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=600&q=80",
-        mapX: 42,
-        mapY: 65,
+        building: "Fr. Joseph Boyd Building",
+        floor: "Ground Floor, Room 101",
+        photo: "https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=500&q=80",
+        pinX: 22,
+        pinY: 16,
+        desc: "Handles transcript requests, enrollment evaluations, and student records.",
         directions: {
           main_gate: [
-            "Enter through the Main Entrance Gate on Poblacion street.",
-            "Walk straight down the main covered avenue directly toward the Administration Building.",
-            "Enter through the glass double doors into the ground floor main lobby.",
-            "The Registrar's Office is located on your immediate right side."
+            "Enter Main Gate on Notre Dame Ave.",
+            "Walk straight north towards Fr. Joseph Boyd Building.",
+            "Enter the main ground floor entrance; Registrar is to the right of the lobby."
           ],
-          back_gate: [
-            "Enter through the Back Extension Gate.",
-            "Follow the pathway along the side of the Science Wing toward the Quadrangle.",
-            "Cross the plaza toward the Administration Building lobby.",
-            "Enter the ground floor doors; the Registrar's counters are on your right."
-          ],
-          quadrangle: [
-            "From the Quadrangle plaza, face the main Administration Building.",
-            "Walk up the low steps into the main lobby.",
-            "Turn right to locate the Registrar's service windows."
-          ],
-          canteen: [
-            "Exit the Canteen and turn left onto the concrete walkway.",
-            "Walk past the courtyard to the central Administration Building.",
-            "Enter the front lobby; the Registrar's office is on the ground floor right."
-          ],
-          gymnasium: [
-            "Head west out of the Gymnasium toward the center of campus.",
-            "Pass the Quadrangle and enter the Administration Building main entrance.",
-            "Find the Registrar on the ground floor lobby."
+          chapel: [
+            "Walk west from NDMC Chapel to Fr. Joseph Boyd Building.",
+            "Enter the main lobby on the ground floor."
           ]
         }
       },
       {
-        id: "loc_finance",
-        name: "Business & Finance Office (Cashier)",
-        category: "office",
-        building: "Administration Building",
-        floor: "Ground Floor",
-        desc: "Official payment counter for tuition fees, assessment form validation, permit issuance, and clearance.",
-        imageUrl: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80",
-        mapX: 45,
-        mapY: 68,
+        id: "madonna_bldg",
+        name: "Madonna Building",
+        category: "building",
+        building: "Madonna Building",
+        floor: "Ground & Upper Floors",
+        photo: "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=500&q=80",
+        pinX: 8,
+        pinY: 55,
+        desc: "Houses classrooms, faculty offices, and academic departments.",
         directions: {
           main_gate: [
-            "Enter through the Main Gate and walk straight toward the Admin Building.",
-            "Enter the lobby and walk directly straight past the central pillar.",
-            "The Business Office cashier counters are directly ahead."
+            "Enter the Main Gate on Notre Dame Avenue.",
+            "Turn left immediately along the western perimeter wall.",
+            "Madonna Building will be on your right hand side."
           ],
-          back_gate: [
-            "Proceed from the Back Gate towards the Admin Building.",
-            "Enter the ground floor main entrance.",
-            "Walk straight into the cashier lounge area."
-          ],
-          quadrangle: [
-            "Walk straight into the Admin Building lobby from the Quadrangle.",
-            "Proceed to the cashier counters positioned directly ahead."
-          ],
-          canteen: [
-            "Walk along the main walkway from the Canteen straight to the Admin Building.",
-            "Enter the main doors to access the Business Office cashier counters."
-          ],
-          gymnasium: [
-            "Walk from the Gym across the courtyard into the Admin Building.",
-            "The cashier line is located straight inside the lobby."
-          ]
-        }
-      },
-      {
-        id: "loc_com_lab_1",
-        name: "Computer Laboratory 1",
-        category: "room",
-        building: "Information Technology Center",
-        floor: "2nd Floor, Room IT-201",
-        desc: "Equipped computer laboratory for Computer Science, Information Technology, and multimedia subjects.",
-        imageUrl: "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?auto=format&fit=crop&w=600&q=80",
-        mapX: 62,
-        mapY: 38,
-        directions: {
-          main_gate: [
-            "Enter the Main Gate and turn left onto the Academic Quad pathway.",
-            "Proceed toward the IT Building on the eastern side.",
-            "Take the central staircase up to the 2nd floor.",
-            "Turn left in the hallway; Room IT-201 is the second doorway."
-          ],
-          back_gate: [
-            "Enter via Back Gate and head straight towards the IT Wing.",
-            "Ascend the staircase to the 2nd floor.",
-            "Locate Lab 1 on your left side along the hallway."
-          ],
-          quadrangle: [
-            "Cross the Quadrangle heading toward the IT Building.",
-            "Go up the stairs to the 2nd floor.",
-            "Turn left for Computer Laboratory 1."
-          ],
-          canteen: [
-            "From the Canteen, take the covered path heading east.",
-            "Enter the IT Building and go up to the 2nd floor.",
-            "Computer Lab 1 will be on your left."
-          ],
-          gymnasium: [
-            "Walk past the side of the Gym directly toward the IT Building.",
-            "Head up to the 2nd Floor and turn left."
-          ]
-        }
-      },
-      {
-        id: "loc_library",
-        name: "NDMC Main Library",
-        category: "facility",
-        building: "Learning Resource Center",
-        floor: "2nd & 3rd Floor",
-        desc: "Quiet study zones, research book collections, thesis archives, and digital computer search terminals.",
-        imageUrl: "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=600&q=80",
-        mapX: 30,
-        mapY: 40,
-        directions: {
-          main_gate: [
-            "Enter the Main Gate and walk straight.",
-            "Turn left at the first junction toward the Learning Resource Center.",
-            "Ascend the main wide staircase to the 2nd Floor.",
-            "Tap or show your NDMC ID at the library entrance."
-          ],
-          back_gate: [
-            "Walk straight from Back Gate past the side gardens.",
-            "Head into the Learning Resource Center entrance.",
-            "Take the stairs to the 2nd floor Library lobby."
-          ],
-          quadrangle: [
-            "Head west from the Quadrangle directly to the Learning Resource Center.",
-            "Go up the staircase to the 2nd Floor."
-          ],
-          canteen: [
-            "Exit the Canteen and head north past the open court.",
-            "Enter the Learning Resource Center and ascend to the 2nd floor Library."
-          ],
-          gymnasium: [
-            "Walk from the Gym past the Quadrangle into the Learning Resource Center.",
-            "Head up to the 2nd floor."
-          ]
-        }
-      },
-      {
-        id: "loc_osa",
-        name: "Office of Student Affairs (OSA)",
-        category: "office",
-        building: "Student Activity Center",
-        floor: "Ground Floor, Room 102",
-        desc: "Student organizations management, ID issuance, student discipline, and activity approvals.",
-        imageUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=600&q=80",
-        mapX: 75,
-        mapY: 70,
-        directions: {
-          main_gate: [
-            "Enter through Main Gate and follow the path to the right.",
-            "Walk toward the Student Activity Center.",
-            "The OSA office is on the ground floor next to the Supreme Student Council room."
-          ],
-          back_gate: [
-            "From Back Gate, take the right walkway near the Gym.",
-            "Proceed to the Student Activity Center.",
-            "Enter the ground floor; OSA is in Room 102."
-          ],
-          quadrangle: [
-            "Walk towards the eastern perimeter near the Activity Center.",
-            "OSA is located on the ground floor."
-          ],
-          canteen: [
-            "Walk east past the Canteen toward the Activity Center.",
-            "Enter the ground floor door to find OSA."
-          ],
-          gymnasium: [
-            "Exit Gym and turn right to enter the adjacent Student Activity Center.",
-            "OSA is on the ground floor."
+          chapel: [
+            "Head south-west across the main open field.",
+            "Proceed toward the western perimeter where Madonna Building is located."
           ]
         }
       }
     ];
 
-    /* ==========================================================================
-       APP STATE MANAGEMENT
-       ========================================================================== */
-    let campusLocations = [];
-    let currentMapUrl = DEFAULT_MAP_URL;
-    let isAdminLoggedIn = false;
-    let activeDirCategory = 'all';
+    // App State Management
+    let locations = JSON.parse(localStorage.getItem('tungo_locations')) || defaultLocations;
+    let storedMapUrl = localStorage.getItem('tungo_map_url');
     
-    // Map view pan/zoom state
-    let mapZoomScale = 1;
-    let isPanning = false;
-    let startPanX = 0, startPanY = 0;
-    let currentPanX = 0, currentPanY = 0;
+    // Automatic fallback fix to force local image path if previously cached with Imgur URL
+    if (!storedMapUrl || storedMapUrl.includes("imgur.com")) {
+      storedMapUrl = defaultMapUrl;
+      localStorage.setItem('tungo_map_url', defaultMapUrl);
+    }
+    let campusMapUrl = storedMapUrl;
+    let isAdmin = false;
 
-    /* Initialize System Data */
-    function initAppData() {
-      const storedData = localStorage.getItem('tungo_locations');
-      if (storedData) {
-        try {
-          campusLocations = JSON.parse(storedData);
-        } catch (e) {
-          campusLocations = [...INITIAL_CAMPUS_DATA];
-        }
-      } else {
-        campusLocations = [...INITIAL_CAMPUS_DATA];
-        saveToLocalStorage();
-      }
+    // View Switching Logic
+    function switchView(viewName) {
+      document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
 
-      const storedMapUrl = localStorage.getItem('tungo_map_url');
-      if (storedMapUrl) {
-        currentMapUrl = storedMapUrl;
-      }
+      document.getElementById(`view-${viewName}`).classList.add('active');
       
-      document.getElementById('campusMapImg').src = currentMapUrl;
-      document.getElementById('adminMapUrlInput').value = currentMapUrl;
-
-      populateDestinationDropdown();
-      renderVisitorDirectory();
-      calculateRoute();
-      setupMapDragPan();
-    }
-
-    function saveToLocalStorage() {
-      localStorage.setItem('tungo_locations', JSON.stringify(campusLocations));
-      localStorage.setItem('tungo_map_url', currentMapUrl);
-    }
-
-    /* Reset Data to Original College Defaults */
-    function resetToDefaultData() {
-      if (confirm("Are you sure you want to reset all campus location data back to NDMC defaults?")) {
-        campusLocations = [...INITIAL_CAMPUS_DATA];
-        currentMapUrl = DEFAULT_MAP_URL;
-        saveToLocalStorage();
-        initAppData();
-        if (isAdminLoggedIn) renderAdminTable();
-        showToast("System Reset", "All data restored to NDMC defaults.");
-      }
-    }
-
-    /* ==========================================================================
-       VIEW ROUTING & MODAL INTERACTION
-       ========================================================================== */
-    function navigateTo(viewName) {
-      document.getElementById('viewHome').classList.add('hidden');
-      document.getElementById('viewExplorer').classList.add('hidden');
-      document.getElementById('viewAdmin').classList.add('hidden');
-
-      if (viewName === 'home') {
-        document.getElementById('viewHome').classList.remove('hidden');
-      } else if (viewName === 'explorer') {
-        document.getElementById('viewExplorer').classList.remove('hidden');
+      if (viewName === 'visitor') {
+        renderVisitorView();
       } else if (viewName === 'admin') {
-        if (!isAdminLoggedIn) {
-          openAdminModal();
+        if (!isAdmin) {
+          switchView('portal');
+          openAdminLogin();
           return;
         }
-        document.getElementById('viewAdmin').classList.remove('hidden');
-        renderAdminTable();
-      }
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    function switchExplorerTab(tabName) {
-      document.getElementById('tabContentDirections').classList.add('hidden');
-      document.getElementById('tabContentMap').classList.add('hidden');
-      document.getElementById('tabContentDirectory').classList.add('hidden');
-
-      // Reset button styles
-      ['tabBtnDirections', 'tabBtnMap', 'tabBtnDirectory'].forEach(id => {
-        const btn = document.getElementById(id);
-        btn.className = "px-4 py-2 rounded-lg text-slate-600 hover:text-slate-900 transition";
-      });
-
-      if (tabName === 'directions') {
-        document.getElementById('tabContentDirections').classList.remove('hidden');
-        document.getElementById('tabBtnDirections').className = "px-4 py-2 rounded-lg bg-white text-ndmc-green font-bold shadow-sm transition";
-      } else if (tabName === 'map') {
-        document.getElementById('tabContentMap').classList.remove('hidden');
-        document.getElementById('tabBtnMap').className = "px-4 py-2 rounded-lg bg-white text-ndmc-green font-bold shadow-sm transition";
-        renderMapPins();
-      } else if (tabName === 'directory') {
-        document.getElementById('tabContentDirectory').classList.remove('hidden');
-        document.getElementById('tabBtnDirectory').className = "px-4 py-2 rounded-lg bg-white text-ndmc-green font-bold shadow-sm transition";
+        renderAdminView();
       }
     }
 
-    /* ==========================================================================
-       ADMINISTRATOR AUTHENTICATION
-       ========================================================================== */
-    function openAdminModal() {
-      if (isAdminLoggedIn) {
-        navigateTo('admin');
+    // Modal Control
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    // Admin Auth
+    function openAdminLogin() {
+      if (isAdmin) {
+        switchView('admin');
       } else {
-        document.getElementById('modalAdminLogin').classList.remove('hidden');
-        document.getElementById('modalAdminLogin').classList.add('flex');
+        document.getElementById('loginModal').classList.add('active');
       }
     }
 
-    function closeAdminModal() {
-      document.getElementById('modalAdminLogin').classList.add('hidden');
-      document.getElementById('modalAdminLogin').classList.remove('flex');
-    }
+    function processLogin() {
+      const u = document.getElementById('loginUser').value;
+      const p = document.getElementById('loginPass').value;
 
-    function handleAdminLogin(e) {
-      e.preventDefault();
-      const user = document.getElementById('adminUser').value;
-      const pass = document.getElementById('adminPass').value;
-
-      if (user === 'Admin' && pass === 'pass123') {
-        isAdminLoggedIn = true;
-        closeAdminModal();
-        
-        // Update UI Indicator
-        document.getElementById('modeText').textContent = "Admin Mode";
-        document.getElementById('adminBtnLabel').textContent = "Admin Control";
-        
-        showToast("Access Granted", "Logged in as Administrator.");
-        navigateTo('admin');
+      if (u === 'Admin' && p === 'pass123') {
+        isAdmin = true;
+        document.getElementById('loginError').style.display = 'none';
+        document.getElementById('loginUser').value = '';
+        document.getElementById('loginPass').value = '';
+        document.getElementById('adminNavBtn').textContent = 'Admin Panel';
+        closeModal('loginModal');
+        switchView('admin');
       } else {
-        showToast("Access Denied", "Invalid Username or Password.", true);
+        document.getElementById('loginError').style.display = 'block';
       }
     }
 
     function logoutAdmin() {
-      isAdminLoggedIn = false;
-      document.getElementById('modeText').textContent = "Visitor Mode";
-      document.getElementById('adminBtnLabel').textContent = "Admin Login";
-      showToast("Logged Out", "Returned to Visitor Mode.");
-      navigateTo('home');
+      isAdmin = false;
+      document.getElementById('adminNavBtn').textContent = 'Admin Login';
+      switchView('portal');
     }
 
-    /* ==========================================================================
-       FRESHMEN & VISITOR ENGINE
-       ========================================================================== */
-    function populateDestinationDropdown() {
-      const select = document.getElementById('destinationSelect');
+    // Visitor Rendering
+    function renderVisitorView() {
+      // Map Image
+      document.getElementById('campusMapImg').src = campusMapUrl;
+
+      // Destination Select Box
+      const select = document.getElementById('destLoc');
       select.innerHTML = '';
-      
-      campusLocations.forEach(loc => {
-        const option = document.createElement('option');
-        option.value = loc.id;
-        option.textContent = `${loc.name} (${loc.building})`;
-        select.appendChild(option);
+      locations.forEach(loc => {
+        const opt = document.createElement('option');
+        opt.value = loc.id;
+        opt.textContent = `${loc.name} (${loc.building})`;
+        select.appendChild(opt);
+      });
+
+      renderMapPins();
+      renderDirectory();
+      generateDirections();
+    }
+
+    function renderMapPins() {
+      const container = document.getElementById('mapPins');
+      container.innerHTML = '';
+
+      locations.forEach(loc => {
+        const pin = document.createElement('div');
+        pin.className = 'map-pin';
+        pin.style.left = `${loc.pinX}%`;
+        pin.style.top = `${loc.pinY}%`;
+        pin.onclick = () => {
+          document.getElementById('destLoc').value = loc.id;
+          generateDirections();
+        };
+
+        const label = document.createElement('div');
+        label.className = 'map-pin-label';
+        label.textContent = loc.name;
+        pin.appendChild(label);
+
+        container.appendChild(pin);
       });
     }
 
-    function calculateRoute() {
-      const startKey = document.getElementById('startPointSelect').value;
-      const destId = document.getElementById('destinationSelect').value;
-
-      const destination = campusLocations.find(l => l.id === destId);
-      if (!destination) return;
-
-      // Update Summary Card
-      document.getElementById('destTitle').textContent = destination.name;
-      document.getElementById('destSubtitle').textContent = `${destination.building} — ${destination.floor}`;
-      document.getElementById('destDescription').textContent = destination.desc || "No additional description available.";
-      document.getElementById('destImage').src = destination.imageUrl || DEFAULT_MAP_URL;
-      
-      const badge = document.getElementById('destCategoryBadge');
-      badge.textContent = destination.category.toUpperCase();
-      badge.className = `absolute top-2 right-2 px-2.5 py-1 rounded-full text-xs font-bold shadow-sm badge-${destination.category}`;
-
-      // Update Route Header
-      document.getElementById('routeHeaderTitle').textContent = `Directions to ${destination.name}`;
-      
-      // Get Steps
-      const stepsList = document.getElementById('routeStepsList');
-      stepsList.innerHTML = '';
-
-      let steps = [];
-      if (destination.directions && destination.directions[startKey] && destination.directions[startKey].length > 0) {
-        steps = destination.directions[startKey];
-      } else if (destination.directions && destination.directions['main_gate']) {
-        steps = destination.directions['main_gate'];
-      } else {
-        steps = [
-          "Head towards the main campus central area.",
-          `Ask security or staff for directions to ${destination.building}.`,
-          `Proceed to ${destination.floor} to locate ${destination.name}.`
-        ];
-      }
-
-      steps.forEach((stepText, idx) => {
-        const li = document.createElement('li');
-        li.className = "mb-4 ml-6";
-        li.innerHTML = `
-          <span class="absolute flex items-center justify-center w-6 h-6 bg-ndmc-green text-white rounded-full -left-3 ring-4 ring-white font-bold text-xs">
-            ${idx + 1}
-          </span>
-          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl shadow-sm text-xs font-medium text-slate-800 leading-relaxed">
-            ${stepText}
-          </div>
-        `;
-        stepsList.appendChild(li);
-      });
-
-      // Update Map Marker Label
-      document.getElementById('mapPinLabel').textContent = destination.name;
-      renderMapPins(destination.id);
-    }
-
-    function filterDirCategory(category) {
-      activeDirCategory = category;
-      ['catBtnAll', 'catBtnBuilding', 'catBtnOffice', 'catBtnRoom', 'catBtnFacility'].forEach(id => {
-        const btn = document.getElementById(id);
-        btn.className = "px-3 py-2 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition";
-      });
-
-      const activeBtnId = category === 'all' ? 'catBtnAll' : `catBtn${category.charAt(0).toUpperCase() + category.slice(1)}`;
-      const activeBtn = document.getElementById(activeBtnId);
-      if (activeBtn) activeBtn.className = "px-3 py-2 rounded-lg bg-ndmc-green text-white font-bold transition";
-
-      renderVisitorDirectory();
-    }
-
-    function renderVisitorDirectory() {
+    function renderDirectory() {
+      const q = document.getElementById('dirSearch').value.toLowerCase();
       const grid = document.getElementById('directoryGrid');
-      const searchQuery = document.getElementById('dirSearchInput').value.toLowerCase();
-      
       grid.innerHTML = '';
 
-      const filtered = campusLocations.filter(item => {
-        const matchesCat = activeDirCategory === 'all' || item.category === activeDirCategory;
-        const matchesQuery = item.name.toLowerCase().includes(searchQuery) ||
-                             item.building.toLowerCase().includes(searchQuery) ||
-                             item.floor.toLowerCase().includes(searchQuery) ||
-                             item.desc.toLowerCase().includes(searchQuery);
-        return matchesCat && matchesQuery;
-      });
+      const filtered = locations.filter(loc => 
+        loc.name.toLowerCase().includes(q) ||
+        loc.building.toLowerCase().includes(q) ||
+        loc.desc.toLowerCase().includes(q)
+      );
 
-      if (filtered.length === 0) {
-        grid.innerHTML = `
-          <div class="col-span-full py-12 text-center text-slate-400">
-            <i class="fa-solid fa-compass text-4xl mb-2"></i>
-            <p class="text-sm font-semibold">No campus locations match your search criteria.</p>
-          </div>
-        `;
-        return;
-      }
-
-      filtered.forEach(item => {
+      filtered.forEach(loc => {
         const card = document.createElement('div');
-        card.className = "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition flex flex-col";
+        card.className = 'dest-card';
+        card.onclick = () => {
+          document.getElementById('destLoc').value = loc.id;
+          generateDirections();
+        };
+
+        const photoHtml = loc.photo ? `<img src="${loc.photo}" alt="${loc.name}" onerror="this.style.display='none'">` : '';
+
         card.innerHTML = `
-          <div class="h-36 bg-slate-100 relative">
-            <img src="${item.imageUrl || DEFAULT_MAP_URL}" class="w-full h-full object-cover"/>
-            <span class="absolute top-2 right-2 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase shadow badge-${item.category}">
-              ${item.category}
-            </span>
-          </div>
-          <div class="p-4 flex-1 flex flex-col justify-between space-y-3">
-            <div>
-              <h4 class="font-bold text-slate-800 text-base leading-snug">${item.name}</h4>
-              <p class="text-xs font-semibold text-ndmc-green mt-0.5"><i class="fa-solid fa-building mr-1"></i>${item.building}</p>
-              <p class="text-xs text-slate-500"><i class="fa-solid fa-layer-group mr-1"></i>${item.floor}</p>
-              <p class="text-xs text-slate-600 mt-2 line-clamp-2">${item.desc || ''}</p>
-            </div>
-            <button onclick="selectAndNavigate('${item.id}')" class="w-full bg-slate-100 hover:bg-ndmc-green hover:text-white text-slate-800 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center space-x-1">
-              <span>View Route Directions</span>
-              <i class="fa-solid fa-arrow-right text-[10px]"></i>
-            </button>
-          </div>
+          ${photoHtml}
+          <h4>${loc.name}</h4>
+          <p><strong>Building:</strong> ${loc.building}</p>
+          <p><strong>Level:</strong> ${loc.floor}</p>
+          <span class="badge badge-${loc.category}">${loc.category}</span>
         `;
         grid.appendChild(card);
       });
     }
 
-    function selectAndNavigate(id) {
-      document.getElementById('destinationSelect').value = id;
-      switchExplorerTab('directions');
-      calculateRoute();
-    }
+    function generateDirections() {
+      const startKey = document.getElementById('startLoc').value;
+      const destId = document.getElementById('destLoc').value;
+      const loc = locations.find(l => l.id === destId);
 
-    /* ==========================================================================
-       INTERACTIVE MAP ENGINE
-       ========================================================================== */
-    function renderMapPins(activeHighlightId = null) {
-      const overlay = document.getElementById('mapPinsOverlay');
-      overlay.innerHTML = '';
+      if (!loc) return;
 
-      campusLocations.forEach(loc => {
-        if (loc.mapX !== undefined && loc.mapY !== undefined) {
-          const pin = document.createElement('div');
-          const isSelected = activeHighlightId === loc.id;
-          
-          pin.style.left = `${loc.mapX}%`;
-          pin.style.top = `${loc.mapY}%`;
-          pin.className = `absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer pin-marker z-10 ${isSelected ? 'scale-125 z-20' : 'hover:scale-110'}`;
-          
-          pin.onclick = () => {
-            selectAndNavigate(loc.id);
-          };
+      // Update Preview Card
+      const preview = document.getElementById('destImagePreview');
+      preview.innerHTML = `
+        <h4 style="color:var(--primary);">${loc.name}</h4>
+        <p style="font-size:0.8rem; color:#64748b; margin-bottom:0.5rem;">${loc.building} — ${loc.floor}</p>
+        ${loc.photo ? `<img src="${loc.photo}" style="width:100\%; height:160px; object-fit:cover; border-radius:6px;" alt="${loc.name}">` : ''}
+        <p style="font-size:0.85rem; margin-top:0.5rem; color:#334155;">${loc.desc}</p>
+      `;
 
-          pin.innerHTML = `
-            <div class="relative group">
-              <div class="${isSelected ? 'bg-red-600 text-white animate-bounce' : 'bg-ndmc-green text-ndmc-gold'} p-2 rounded-full shadow-lg border-2 border-white flex items-center justify-center">
-                <i class="fa-solid fa-location-dot text-sm"></i>
-              </div>
-              <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1 hidden group-hover:block bg-slate-900 text-white text-[10px] font-bold px-2 py-1 rounded shadow whitespace-nowrap z-30">
-                ${loc.name}
-              </div>
-            </div>
-          `;
-          overlay.appendChild(pin);
-        }
-      });
-    }
+      // Update Route Box
+      const steps = (loc.directions && loc.directions[startKey]) ? loc.directions[startKey] : loc.directions['main_gate'] || ["Proceed to destination."];
+      
+      document.getElementById('routeTitle').textContent = `Route to ${loc.name}`;
+      document.getElementById('routeMeta').textContent = `Target: ${loc.building} (${loc.floor})`;
 
-    function setupMapDragPan() {
-      const container = document.getElementById('mapViewport');
-      const layer = document.getElementById('mapTransformLayer');
-
-      container.addEventListener('mousedown', (e) => {
-        isPanning = true;
-        startPanX = e.clientX - currentPanX;
-        startPanY = e.clientY - currentPanY;
+      const stepsList = document.getElementById('routeSteps');
+      stepsList.innerHTML = '';
+      steps.forEach(step => {
+        const li = document.createElement('li');
+        li.textContent = step;
+        stepsList.appendChild(li);
       });
 
-      window.addEventListener('mousemove', (e) => {
-        if (!isPanning) return;
-        currentPanX = e.clientX - startPanX;
-        currentPanY = e.clientY - startPanY;
-        updateMapTransform();
-      });
-
-      window.addEventListener('mouseup', () => {
-        isPanning = false;
-      });
+      document.getElementById('routeOutput').style.display = 'block';
     }
 
-    function zoomMap(delta) {
-      mapZoomScale = Math.min(Math.max(0.6, mapZoomScale + delta), 2.5);
-      updateMapTransform();
-    }
-
-    function resetMapZoom() {
-      mapZoomScale = 1;
-      currentPanX = 0;
-      currentPanY = 0;
-      updateMapTransform();
-    }
-
-    function updateMapTransform() {
-      const layer = document.getElementById('mapTransformLayer');
-      layer.style.transform = `translate(${currentPanX}px, ${currentPanY}px) scale(${mapZoomScale})`;
-    }
-
-    /* ==========================================================================
-       ADMINISTRATOR CRUD MANAGEMENT
-       ========================================================================== */
-    function renderAdminTable() {
+    // Admin View & CRUD
+    function renderAdminView() {
       const tbody = document.getElementById('adminTableBody');
-      const query = document.getElementById('adminSearchInput').value.toLowerCase();
       tbody.innerHTML = '';
 
-      const filtered = campusLocations.filter(loc => 
-        loc.name.toLowerCase().includes(query) ||
-        loc.building.toLowerCase().includes(query) ||
-        loc.category.toLowerCase().includes(query)
-      );
-
-      if (filtered.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="6" class="p-8 text-center text-slate-400">No matching campus records found.</td>
-          </tr>
-        `;
-        return;
-      }
-
-      filtered.forEach(loc => {
+      locations.forEach(loc => {
         const tr = document.createElement('tr');
-        tr.className = "hover:bg-slate-50 transition";
         tr.innerHTML = `
-          <td class="p-4">
-            <img src="${loc.imageUrl || DEFAULT_MAP_URL}" class="w-10 h-10 rounded-lg object-cover border border-slate-200"/>
-          </td>
-          <td class="p-4 font-bold text-slate-800">
-            ${loc.name}
-            <div class="text-[10px] text-slate-400 font-mono">${loc.id}</div>
-          </td>
-          <td class="p-4">
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase badge-${loc.category}">${loc.category}</span>
-          </td>
-          <td class="p-4 text-slate-600">
-            <div>${loc.building}</div>
-            <div class="text-[11px] text-slate-400">${loc.floor}</div>
-          </td>
-          <td class="p-4 text-slate-500 font-mono text-[11px]">
-            X: ${loc.mapX || 50}%, Y: ${loc.mapY || 50}%
-          </td>
-          <td class="p-4 text-right space-x-1">
-            <button onclick="editLocation('${loc.id}')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2.5 py-1 rounded-lg font-bold text-xs transition">
-              <i class="fa-solid fa-pen"></i> Edit
-            </button>
-            <button onclick="deleteLocation('${loc.id}')" class="bg-red-100 hover:bg-red-200 text-red-700 px-2.5 py-1 rounded-lg font-bold text-xs transition">
-              <i class="fa-solid fa-trash"></i> Delete
-            </button>
+          <td><strong>${loc.name}</strong></td>
+          <td><span class="badge badge-${loc.category}">${loc.category}</span></td>
+          <td>${loc.building} (${loc.floor})</td>
+          <td>X: ${loc.pinX}%, Y: ${loc.pinY}%</td>
+          <td>
+            <button class="action-btn btn-edit" onclick="editLocation('${loc.id}')">Edit</button>
+            <button class="action-btn btn-delete" onclick="deleteLocation('${loc.id}')">Delete</button>
           </td>
         `;
         tbody.appendChild(tr);
       });
     }
 
-    function openAddLocationModal() {
-      document.getElementById('editLocationId').value = '';
-      document.getElementById('editorModalTitle').textContent = 'Add New Campus Location';
-      document.getElementById('formName').value = '';
-      document.getElementById('formCategory').value = 'office';
-      document.getElementById('formBuilding').value = '';
-      document.getElementById('formFloor').value = '';
-      document.getElementById('formDesc').value = '';
-      document.getElementById('formImageUrl').value = '';
-      document.getElementById('formMapX').value = '50';
-      document.getElementById('formMapY').value = '50';
-      document.getElementById('dirFromMainGate').value = '';
-      document.getElementById('dirFromQuad').value = '';
-
-      document.getElementById('modalLocationEditor').classList.remove('hidden');
-      document.getElementById('modalLocationEditor').classList.add('flex');
-    }
-
-    function editLocation(id) {
-      const loc = campusLocations.find(l => l.id === id);
-      if (!loc) return;
-
-      document.getElementById('editLocationId').value = loc.id;
-      document.getElementById('editorModalTitle').textContent = `Edit: ${loc.name}`;
-      document.getElementById('formName').value = loc.name;
-      document.getElementById('formCategory').value = loc.category;
-      document.getElementById('formBuilding').value = loc.building;
-      document.getElementById('formFloor').value = loc.floor;
-      document.getElementById('formDesc').value = loc.desc || '';
-      document.getElementById('formImageUrl').value = loc.imageUrl || '';
-      document.getElementById('formMapX').value = loc.mapX || 50;
-      document.getElementById('formMapY').value = loc.mapY || 50;
-
-      document.getElementById('dirFromMainGate').value = (loc.directions && loc.directions.main_gate) ? loc.directions.main_gate.join('\n') : '';
-      document.getElementById('dirFromQuad').value = (loc.directions && loc.directions.quadrangle) ? loc.directions.quadrangle.join('\n') : '';
-
-      document.getElementById('modalLocationEditor').classList.remove('hidden');
-      document.getElementById('modalLocationEditor').classList.add('flex');
-    }
-
-    function closeLocationEditorModal() {
-      document.getElementById('modalLocationEditor').classList.add('hidden');
-      document.getElementById('modalLocationEditor').classList.remove('flex');
-    }
-
-    function handleImageFileUpload(e) {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = function(event) {
-          document.getElementById('formImageUrl').value = event.target.result;
-        };
-        reader.readAsDataURL(file);
+    function openLocationModal(locId = null) {
+      document.getElementById('editLocId').value = locId || '';
+      if (locId) {
+        const loc = locations.find(l => l.id === locId);
+        document.getElementById('modalFormTitle').textContent = 'Edit Location';
+        document.getElementById('locName').value = loc.name;
+        document.getElementById('locCategory').value = loc.category;
+        document.getElementById('locBuilding').value = loc.building;
+        document.getElementById('locFloor').value = loc.floor;
+        document.getElementById('locPhoto').value = loc.photo || '';
+        document.getElementById('locPinX').value = loc.pinX;
+        document.getElementById('locPinY').value = loc.pinY;
+        document.getElementById('locDesc').value = loc.desc;
+        document.getElementById('dirMainGate').value = loc.directions?.main_gate ? loc.directions.main_gate.join('\n') : '';
+        document.getElementById('dirChapel').value = loc.directions?.chapel ? loc.directions.chapel.join('\n') : '';
+      } else {
+        document.getElementById('modalFormTitle').textContent = 'Add Location';
+        document.getElementById('locName').value = '';
+        document.getElementById('locCategory').value = 'office';
+        document.getElementById('locBuilding').value = '';
+        document.getElementById('locFloor').value = '';
+        document.getElementById('locPhoto').value = '';
+        document.getElementById('locPinX').value = 50;
+        document.getElementById('locPinY').value = 50;
+        document.getElementById('locDesc').value = '';
+        document.getElementById('dirMainGate').value = '';
+        document.getElementById('dirChapel').value = '';
       }
+      document.getElementById('locationModal').classList.add('active');
     }
 
-    function handleSaveLocation(e) {
-      e.preventDefault();
-      const existingId = document.getElementById('editLocationId').value;
-      
-      const name = document.getElementById('formName').value;
-      const category = document.getElementById('formCategory').value;
-      const building = document.getElementById('formBuilding').value;
-      const floor = document.getElementById('formFloor').value;
-      const desc = document.getElementById('formDesc').value;
-      const imageUrl = document.getElementById('formImageUrl').value || DEFAULT_MAP_URL;
-      const mapX = parseInt(document.getElementById('formMapX').value) || 50;
-      const mapY = parseInt(document.getElementById('formMapY').value) || 50;
+    function editLocation(id) { openLocationModal(id); }
 
-      const mainGateText = document.getElementById('dirFromMainGate').value.trim();
-      const quadText = document.getElementById('dirFromQuad').value.trim();
+    function saveLocation() {
+      const id = document.getElementById('editLocId').value || 'loc_' + Date.now();
+      const name = document.getElementById('locName').value.trim();
+      const category = document.getElementById('locCategory').value;
+      const building = document.getElementById('locBuilding').value.trim();
+      const floor = document.getElementById('locFloor').value.trim();
+      const photo = document.getElementById('locPhoto').value.trim();
+      const pinX = parseFloat(document.getElementById('locPinX').value) || 50;
+      const pinY = parseFloat(document.getElementById('locPinY').value) || 50;
+      const desc = document.getElementById('locDesc').value.trim();
 
-      const directions = {
-        main_gate: mainGateText ? mainGateText.split('\n').filter(s => s.trim()) : [`Proceed to ${building} - ${floor}.`],
-        quadrangle: quadText ? quadText.split('\n').filter(s => s.trim()) : [`Walk from Quadrangle to ${building}.`]
+      const mainGateSteps = document.getElementById('dirMainGate').value.split('\n').filter(s => s.trim() !== '');
+      const chapelSteps = document.getElementById('dirChapel').value.split('\n').filter(s => s.trim() !== '');
+
+      if (!name || !building) {
+        alert("Please provide at least Location Name and Building Name.");
+        return;
+      }
+
+      const newLoc = {
+        id,
+        name,
+        category,
+        building,
+        floor,
+        photo,
+        pinX,
+        pinY,
+        desc,
+        directions: {
+          main_gate: mainGateSteps.length ? mainGateSteps : ["Walk towards building destination."],
+          chapel: chapelSteps.length ? chapelSteps : ["Proceed from chapel to destination."]
+        }
       };
 
-      if (existingId) {
-        // Update
-        const idx = campusLocations.findIndex(l => l.id === existingId);
-        if (idx !== -1) {
-          campusLocations[idx] = {
-            ...campusLocations[idx],
-            name, category, building, floor, desc, imageUrl, mapX, mapY, directions
-          };
-          showToast("Location Updated", `Successfully updated ${name}.`);
-        }
+      const existingIndex = locations.findIndex(l => l.id === id);
+      if (existingIndex >= 0) {
+        locations[existingIndex] = newLoc;
       } else {
-        // Create
-        const newId = 'loc_' + Date.now();
-        campusLocations.push({
-          id: newId,
-          name, category, building, floor, desc, imageUrl, mapX, mapY, directions
-        });
-        showToast("Location Created", `Added ${name} to campus directory.`);
+        locations.push(newLoc);
       }
 
-      saveToLocalStorage();
-      populateDestinationDropdown();
-      renderVisitorDirectory();
-      renderAdminTable();
-      closeLocationEditorModal();
+      localStorage.setItem('tungo_locations', JSON.stringify(locations));
+      closeModal('locationModal');
+      renderAdminView();
     }
 
     function deleteLocation(id) {
-      const loc = campusLocations.find(l => l.id === id);
-      if (!loc) return;
-
-      if (confirm(`Are you sure you want to delete "${loc.name}"?`)) {
-        campusLocations = campusLocations.filter(l => l.id !== id);
-        saveToLocalStorage();
-        populateDestinationDropdown();
-        renderVisitorDirectory();
-        renderAdminTable();
-        showToast("Record Deleted", `Removed ${loc.name}.`);
+      if (confirm("Are you sure you want to remove this location?")) {
+        locations = locations.filter(l => l.id !== id);
+        localStorage.setItem('tungo_locations', JSON.stringify(locations));
+        renderAdminView();
       }
     }
 
-    function saveCampusMapUrl() {
-      const url = document.getElementById('adminMapUrlInput').value.trim();
+    function openMapConfigModal() {
+      document.getElementById('mapUrlInput').value = campusMapUrl;
+      document.getElementById('mapModal').classList.add('active');
+    }
+
+    function saveMapUrl() {
+      const url = document.getElementById('mapUrlInput').value.trim();
       if (url) {
-        currentMapUrl = url;
-        document.getElementById('campusMapImg').src = currentMapUrl;
-        saveToLocalStorage();
-        showToast("Map Updated", "New NDMC visual map image saved.");
+        campusMapUrl = url;
+        localStorage.setItem('tungo_map_url', campusMapUrl);
+        closeModal('mapModal');
+        alert("Campus map URL updated!");
       }
     }
-
-    /* Helper Toast Notification */
-    function showToast(title, message, isError = false) {
-      const toast = document.getElementById('toast');
-      document.getElementById('toastTitle').textContent = title;
-      document.getElementById('toastMessage').textContent = message;
-      
-      const icon = document.getElementById('toastIcon');
-      if (isError) {
-        icon.className = "text-red-500 text-xl pt-0.5";
-        icon.innerHTML = `<i class="fa-solid fa-circle-xmark"></i>`;
-      } else {
-        icon.className = "text-ndmc-green text-xl pt-0.5";
-        icon.innerHTML = `<i class="fa-solid fa-circle-check"></i>`;
-      }
-
-      toast.classList.remove('translate-x-full');
-      setTimeout(() => {
-        toast.classList.add('translate-x-full');
-      }, 3500);
-    }
-
-    /* Initialization on Window Load */
-    window.onload = function() {
-      initAppData();
-    };
   </script>
 </body>
 </html>
