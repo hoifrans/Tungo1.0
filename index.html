@@ -168,7 +168,7 @@
     .map-container {
       position: relative;
       width: 100%;
-      height: 400px; /* fallback */
+      height: 400px;
       border-radius: 8px;
       overflow: hidden;
       border: 1px solid var(--border);
@@ -266,6 +266,43 @@
 
     .img-preview-box { width: 100%; height: 120px; border: 1px dashed var(--border); border-radius: 6px; display: flex; align-items: center; justify-content: center; overflow: hidden; margin-top: 0.5rem; background: #f8fafc; }
     .img-preview-box img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+    /* ═══ NEW: 3D Campus View styles ═══ */
+    .canvas3d-wrap {
+      position: relative;
+      width: 100%;
+      height: 560px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      background: linear-gradient(#0e2f4e, #123a26);
+      cursor: grab;
+    }
+    .canvas3d-wrap.dragging { cursor: grabbing; }
+    #isoCanvas { width: 100%; height: 100%; display: block; touch-action: none; }
+    .iso-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    .iso-btn {
+      background: rgba(15,23,42,0.78);
+      color: var(--secondary);
+      border: 1px solid rgba(255,204,0,0.5);
+      border-radius: 6px;
+      padding: 4px 9px;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+    .iso-btn:hover { background: rgba(255,204,0,0.9); color: #0f172a; }
+    .iso-hint {
+      position: absolute;
+      left: 10px;
+      bottom: 10px;
+      background: rgba(15,23,42,0.72);
+      color: #cbd5e1;
+      font-size: 0.72rem;
+      padding: 4px 9px;
+      border-radius: 6px;
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
@@ -297,6 +334,12 @@
         <li class="nav-item user-nav">
           <a class="nav-link" onclick="switchTab('user-navigation', this)">
             <span>🗺️</span> Campus Map & Route
+          </a>
+        </li>
+        <!-- ═══ NEW: 3D view nav item ═══ -->
+        <li class="nav-item user-nav">
+          <a class="nav-link" onclick="switchTab('3d', this)">
+            <span>🧊</span> 3D Campus View
           </a>
         </li>
         <li class="nav-item user-nav">
@@ -436,6 +479,35 @@
           </div>
         </div>
       </div>
+
+      <!-- ═══ NEW: 3D CAMPUS VIEW ═══ -->
+      <div id="view-3d" class="view-container">
+        <div class="card">
+          <div class="card-title">
+            <span>3D Campus View</span>
+            <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">Rendered from mapdata.js building footprints</span>
+          </div>
+          <div class="canvas3d-wrap" id="isoWrap">
+            <canvas id="isoCanvas"></canvas>
+            <div class="iso-controls">
+              <button class="iso-btn" onclick="isoZoomBtn(1.25)">＋</button>
+              <button class="iso-btn" onclick="isoZoomBtn(0.8)">－</button>
+              <button class="iso-btn" onclick="isoRotateBtn(0.26)">⟲</button>
+              <button class="iso-btn" onclick="isoRotateBtn(-0.26)">⟳</button>
+              <button class="iso-btn" id="spinBtn" onclick="isoToggleSpin()">⏸ Spin: On</button>
+              <button class="iso-btn" onclick="isoReset()">⤢ Reset</button>
+            </div>
+            <div class="iso-hint">Drag = orbit &nbsp;•&nbsp; Wheel = zoom &nbsp;•&nbsp; Double-click = reset &nbsp;•&nbsp; Click a building for info</div>
+          </div>
+        </div>
+
+        <div class="card" id="isoInfoCard" style="display:none;">
+          <div class="card-title"><span id="isoInfoName"></span></div>
+          <p id="isoInfoDesc" style="font-size:0.9rem; color:#475569; margin-bottom: 0.75rem;"></p>
+          <button class="btn-primary" onclick="isoRouteToSelected()">🧭 Route to this building</button>
+        </div>
+      </div>
+      <!-- ═══ END 3D VIEW ═══ -->
 
       <!-- USER DIRECTORY VIEW -->
       <div id="view-user-directory" class="view-container">
@@ -634,43 +706,36 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       mapdata.js  —  loaded UNCHANGED (BUILDINGS, FACILITIES, ITEMS,
-       BLDG, GEO, G). To inline instead, paste the whole contents of
-       mapdata.js between this script tag's open/close tags.
-  ============================================================ -->
+  <!-- 1) DATA FILE — loads first (BUILDINGS, FACILITIES, ITEMS, BLDG, GEO, G) -->
   <script src="mapdata.js"></script>
 
+  <!-- 2) APP CODE -->
   <script>
     /* =====================================================================
-       TUNGO app — now powered by mapdata.js
-       Map space: 740 x 507 (matches the traced directory reference).
+       TUNGO app — powered by mapdata.js (740 x 507 traced directory)
     ===================================================================== */
     const MAP_W = 740, MAP_H = 507;
-    const METERS_PER_UNIT = 0.5;      // 1 map unit ≈ 0.5 m — tune to your campus scale
-    const WALK_M_PER_MIN = 80;        // average walking speed for time estimate
+    const METERS_PER_UNIT = 0.5;
+    const WALK_M_PER_MIN = 80;
     const SVG_NS = 'http://www.w3.org/2000/svg';
     const STORAGE_KEY = 'tungo_locations';
     const defaultMapUrl = 'image.png';
 
-    /* Guard: make sure mapdata.js loaded */
     if (typeof ITEMS === 'undefined' || typeof G === 'undefined') {
       document.body.innerHTML = '<p style="padding:2rem; color:#b91c1c; font-weight:600;">mapdata.js could not be loaded. Make sure it sits in the same folder as this HTML file.</p>';
       throw new Error('mapdata.js missing');
     }
 
-    /* ---- Fixed start points in map coordinates ---- */
     const START_POINTS = {
       main_gate: { name: 'Main Entrance Gate (Notre Dame Ave)', x: 450, y: 488 },
       chapel:    { name: 'NDMC Chapel', ref: '10', x: 603, y: 377 }
     };
 
-    /* ---- Build the location list straight from ITEMS (no data changed) ---- */
     function buildFromMapData() {
       return ITEMS.map(function (it) {
         return {
           id: 'ndmc_' + it.id,
-          mapRef: it.id,                       // links to G.door for exact door nodes
+          mapRef: it.id,
           name: it.name,
           category: it.kind === 'b' ? 'building' : 'office',
           building: it.name,
@@ -683,17 +748,16 @@
           desc: (it.kind === 'b'
             ? 'Campus building plotted on the official NDMC directory map (map ref ' + it.id + ').'
             : 'Campus facility plotted on the official NDMC directory map (map ref ' + it.id + ').'),
-          directions: null                     // computed live from the walkway graph
+          directions: null
         };
       });
     }
 
-    /* ---- Storage (version-tagged so old fake data is replaced) ---- */
     function loadLocations() {
       try {
         const raw = JSON.parse(localStorage.getItem(STORAGE_KEY));
         if (raw && raw.v === 2 && Array.isArray(raw.items) && raw.items.length) return raw.items;
-      } catch (e) { /* corrupted storage -> reseed */ }
+      } catch (e) { }
       return null;
     }
     function persist() { localStorage.setItem(STORAGE_KEY, JSON.stringify({ v: 2, items: locations })); }
@@ -705,9 +769,10 @@
     let tempMapData = null;
     let isAdmin = false;
     let gpsPoint = null;
+    let lastRoutePath3D = null;   /* shared with the 3D renderer */
 
     /* =====================================================================
-       Pathfinding over the G walkway graph from mapdata.js
+       Pathfinding over the G walkway graph
     ===================================================================== */
     let ADJ = null;
     function getAdj() {
@@ -754,7 +819,6 @@
       return { path: path, dist: dist[dst] };
     }
 
-    /* Map coords: +x = east, +y = south (screen space) */
     function compassLabel(dx, dy) {
       const dirs = ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'];
       let ang = Math.atan2(dy, dx) * 180 / Math.PI;
@@ -762,7 +826,7 @@
       return dirs[Math.round(ang / 45) % 8];
     }
     function turnType(ax, ay, bx, by) {
-      const cross = ax * by - ay * bx;                 // >0 = clockwise on screen = right turn
+      const cross = ax * by - ay * bx;
       const dot = ax * bx + ay * by;
       const deg = Math.abs(Math.atan2(cross, dot) * 180 / Math.PI);
       if (deg < 30) return 'straight';
@@ -825,7 +889,7 @@
     }
 
     /* =====================================================================
-       Map rendering (walkways, route, GPS marker, pins)
+       2D map rendering
     ===================================================================== */
     function drawWalkways() {
       const g = document.getElementById('walkwayGroup');
@@ -840,6 +904,7 @@
     }
 
     function drawRoute(path) {
+      lastRoutePath3D = (path && path.length > 1) ? path : null;   /* 3D view mirrors the route */
       const pl = document.getElementById('routePolyline');
       const dots = document.getElementById('routeDots');
       dots.innerHTML = '';
@@ -891,6 +956,8 @@
     };
 
     function switchTab(tabId, el) {
+      iso.active = (tabId === '3d');   /* pause 3D loop when leaving */
+
       document.querySelectorAll('.view-container').forEach(v => v.classList.remove('active'));
       document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
 
@@ -905,6 +972,8 @@
         renderDirectory();
       } else if (tabId === 'admin-locations') {
         renderAdminView();
+      } else if (tabId === '3d') {
+        isoInit();
       }
     }
 
@@ -957,7 +1026,7 @@
       document.getElementById('usrStatTotal').textContent = total;
       document.getElementById('usrStatBuildings').textContent = bldgs;
       document.getElementById('usrStatOffices').textContent = offices;
-      document.getElementById('usrStatRooms').textContent = G.n.length; // real walkway nodes
+      document.getElementById('usrStatRooms').textContent = G.n.length;
 
       document.getElementById('admStatTotal').textContent = total;
       document.getElementById('admStatBuildings').textContent = bldgs;
@@ -966,7 +1035,6 @@
     }
 
     function updateSelectDropdowns() {
-      // Destinations
       [document.getElementById('destLoc'), document.getElementById('dashDestLoc')].forEach(select => {
         if (!select) return;
         const cur = select.value;
@@ -980,7 +1048,6 @@
         if (cur && locations.some(l => l.id === cur)) select.value = cur;
       });
 
-      // Start points: fixed entrances + every mapped location
       [document.getElementById('startLoc'), document.getElementById('dashStartLoc')].forEach(select => {
         if (!select) return;
         const cur = select.value;
@@ -1007,7 +1074,6 @@
       switchTab('user-navigation', document.querySelectorAll('.user-nav .nav-link')[1]);
     }
 
-    // Image Handlers
     function previewLocFile(input) {
       if (input.files && input.files[0]) {
         const reader = new FileReader();
@@ -1030,7 +1096,6 @@
       }
     }
 
-    // Navigation & Map Functions
     function renderMapPins() {
       document.getElementById('campusMapImg').src = campusMapUrl;
       const container = document.getElementById('mapPins');
@@ -1098,7 +1163,6 @@
         });
         drawRoute(result.path);
       } else {
-        // Fallback: custom/edited locations or unreachable nodes -> saved text directions
         const steps = (loc.directions && loc.directions[startKey])
           ? loc.directions[startKey]
           : (loc.directions && loc.directions['main_gate']) || ['Follow the highlighted path to the destination pin.'];
@@ -1148,7 +1212,6 @@
       });
     }
 
-    // Admin CRUD Operations
     function renderAdminView() {
       const tbody = document.getElementById('adminTableBody');
       tbody.innerHTML = '';
@@ -1225,7 +1288,6 @@
         return;
       }
 
-      // Convert % pin back into map coordinates so routing works for custom entries too
       const existing = locations.find(l => l.id === id);
 
       const newLoc = {
@@ -1291,6 +1353,341 @@
       } else {
         closeModal('mapModal');
       }
+    }
+
+    /* =====================================================================
+       ═══ 3D CAMPUS VIEW ═══
+       Isometric renderer built on BLDG footprints + BUILDINGS + ITEMS + G
+       (all from mapdata.js — no changes needed to that file).
+    ===================================================================== */
+    const iso = {
+      rot: -Math.PI * 0.75, pitch: 0.55, zoom: 1, spin: true,
+      scale: 1, baseScale: 1, panX: 0, panY: 0,
+      sel: -1, hover: -1, active: false, inited: false,
+      cs: Math.cos(-Math.PI * 0.75), sn: Math.sin(-Math.PI * 0.75),
+      lx: -0.55, ly: -0.83, cw: 0, ch: 0
+    };
+    const isoCanvas = document.getElementById('isoCanvas');
+    const isoCtx = isoCanvas.getContext('2d');
+    let isoFaces = [];
+
+    /* Building heights (map units). Edit these to make buildings taller/shorter. */
+    const H3D = { '1': 15, '10': 11, '14': 12, '17': 13, '18': 14, '20': 13, '22': 13, '24': 11, '28': 9, '30': 8, '34': 9, '35': 8, '19b': 9 };
+    function isoH(id) { return H3D[id] || 7.5; }
+
+    function isoResize() {
+      const wrap = document.getElementById('isoWrap');
+      const dpr = window.devicePixelRatio || 1;
+      iso.cw = wrap.clientWidth; iso.ch = wrap.clientHeight;
+      isoCanvas.width = iso.cw * dpr;
+      isoCanvas.height = iso.ch * dpr;
+      isoCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function isoFit() {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      G.n.forEach(p => {
+        if (p[0] < x0) x0 = p[0]; if (p[1] < y0) y0 = p[1];
+        if (p[0] > x1) x1 = p[0]; if (p[1] > y1) y1 = p[1];
+      });
+      iso.bx0 = x0 - 8; iso.by0 = y0 - 8; iso.bx1 = x1 + 8; iso.by1 = y1 + 8;
+      const cs = Math.cos(iso.rot), sn = Math.sin(iso.rot);
+      const pts = [[iso.bx0, iso.by0], [iso.bx1, iso.by0], [iso.bx1, iso.by1], [iso.bx0, iso.by1]];
+      let rx0 = 1e9, rx1 = -1e9, ry0 = 1e9, ry1 = -1e9;
+      pts.forEach(p => {
+        const dx = p[0] - MAP_W / 2, dy = p[1] - MAP_H / 2;
+        const rx = dx * cs - dy * sn, ry = dx * sn + dy * cs;
+        rx0 = Math.min(rx0, rx); rx1 = Math.max(rx1, rx);
+        ry0 = Math.min(ry0, ry); ry1 = Math.max(ry1, ry);
+      });
+      iso.baseScale = Math.min(iso.cw * 0.86 / (rx1 - rx0), iso.ch * 0.82 / ((ry1 - ry0) * iso.pitch + 45));
+      iso.scale = iso.baseScale * iso.zoom;
+    }
+
+    function isoP(x, y, z) {
+      const dx = x - MAP_W / 2 - iso.panX, dy = y - MAP_H / 2 - iso.panY;
+      const rx = dx * iso.cs - dy * iso.sn;
+      const ry = dx * iso.sn + dy * iso.cs;
+      return { x: iso.cw / 2 + rx * iso.scale, y: iso.ch / 2 + ry * iso.scale * iso.pitch - z * iso.scale * 0.9, d: ry };
+    }
+
+    function shade(c, l) {
+      return 'rgb(' + Math.round(c[0] * l) + ',' + Math.round(c[1] * l) + ',' + Math.round(c[2] * l) + ')';
+    }
+    function rrect(x, y, w, h, r) {
+      isoCtx.beginPath();
+      isoCtx.moveTo(x + r, y);
+      isoCtx.arcTo(x + w, y, x + w, y + h, r);
+      isoCtx.arcTo(x + w, y + h, x, y + h, r);
+      isoCtx.arcTo(x, y + h, x, y, r);
+      isoCtx.arcTo(x, y, x + w, y, r);
+      isoCtx.closePath();
+    }
+    function pip(px, py, pts) {
+      let c = false;
+      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+        const a = pts[i], b = pts[j];
+        if ((a.y > py) !== (b.y > py) && px < (b.x - a.x) * (py - a.y) / (b.y - a.y) + a.x) c = !c;
+      }
+      return c;
+    }
+
+    function isoDraw() {
+      if (iso.spin) iso.rot += 0.0032;
+      iso.cs = Math.cos(iso.rot); iso.sn = Math.sin(iso.rot);
+      iso.scale = iso.baseScale * iso.zoom;
+      const W = iso.cw, H = iso.ch, ctx = isoCtx;
+      ctx.clearRect(0, 0, W, H);
+
+      /* sky */
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, '#0e2f4e'); sky.addColorStop(1, '#123a26');
+      ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+
+      /* ground plate */
+      const gp = [[iso.bx0, iso.by0], [iso.bx1, iso.by0], [iso.bx1, iso.by1], [iso.bx0, iso.by1]].map(p => isoP(p[0], p[1], 0));
+      ctx.beginPath();
+      gp.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+      ctx.closePath();
+      ctx.fillStyle = '#e8efe2'; ctx.fill();
+      ctx.strokeStyle = '#b9c8ad'; ctx.lineWidth = 1.5; ctx.stroke();
+
+      /* walkway network on the ground */
+      ctx.strokeStyle = 'rgba(0,77,37,0.25)';
+      ctx.lineWidth = Math.max(1, 1.4 * iso.scale * 0.55);
+      ctx.beginPath();
+      G.e.forEach(e => {
+        const a = isoP(G.n[e[0]][0], G.n[e[0]][1], 0.3);
+        const b = isoP(G.n[e[1]][0], G.n[e[1]][1], 0.3);
+        ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      });
+      ctx.stroke();
+
+      /* active route drawn in 3D */
+      if (lastRoutePath3D && lastRoutePath3D.length > 1) {
+        ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+        ctx.beginPath();
+        lastRoutePath3D.forEach((n, i) => {
+          const p = isoP(G.n[n][0], G.n[n][1], 1.2);
+          i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y);
+        });
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(3, 3.2 * iso.scale * 0.55); ctx.stroke();
+        ctx.strokeStyle = '#ffcc00'; ctx.lineWidth = Math.max(1.6, 1.9 * iso.scale * 0.55); ctx.stroke();
+        const s = isoP(G.n[lastRoutePath3D[0]][0], G.n[lastRoutePath3D[0]][1], 1.2);
+        const t = isoP(G.n[lastRoutePath3D[lastRoutePath3D.length - 1]][0], G.n[lastRoutePath3D[lastRoutePath3D.length - 1]][1], 1.2);
+        [[s, '#22c55e'], [t, '#ffcc00']].forEach(m => {
+          ctx.beginPath(); ctx.arc(m[0].x, m[0].y, 5, 0, 7);
+          ctx.fillStyle = m[1]; ctx.fill();
+          ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 1.5; ctx.stroke();
+        });
+      }
+
+      /* GPS marker */
+      if (gpsPoint) {
+        const p = isoP(gpsPoint.x, gpsPoint.y, 1.5);
+        const r = 5 + 2 * Math.sin(Date.now() / 300);
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, 7);
+        ctx.fillStyle = '#3b82f6'; ctx.fill();
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+      }
+
+      /* build all faces (buildings + facility slabs), then painter's-sort */
+      const faces = [];
+      const labels = [];
+      function pushPrism(wc, h, ref, wallC, roofC) {
+        const base = wc.map(c => isoP(c[0], c[1], 0));
+        const top = wc.map(c => isoP(c[0], c[1], h));
+        for (let k = 0; k < 4; k++) {
+          const k2 = (k + 1) % 4;
+          const ex = wc[k2][0] - wc[k][0], ey = wc[k2][1] - wc[k][1];
+          const len = Math.hypot(ex, ey) || 1;
+          const lum = 0.66 + 0.34 * Math.max(0, (ey / len) * iso.lx + (-ex / len) * iso.ly);
+          faces.push({
+            p: [base[k], base[k2], top[k2], top[k]],
+            fill: shade(wallC, lum),
+            ref: ref,
+            depth: (base[k].d + base[k2].d) / 2 + 0.01
+          });
+        }
+        const rd = (top[0].d + top[1].d + top[2].d + top[3].d) / 4;
+        faces.push({ p: top.slice(), fill: shade(roofC, 1), ref: ref, depth: rd });
+        if (ref.kind === 'b') {
+          labels.push({
+            x: (top[0].x + top[1].x + top[2].x + top[3].x) / 4,
+            y: Math.min(top[0].y, top[1].y, top[2].y, top[3].y),
+            id: ref.id, name: ref.name, i: ref.i
+          });
+        }
+      }
+
+      /* facilities = low slabs */
+      ITEMS.forEach(it => {
+        if (it.kind !== 'f') return;
+        const hw = it.w / 2, hh = it.h / 2;
+        const wc = [[it.x - hw, it.y - hh], [it.x + hw, it.y - hh], [it.x + hw, it.y + hh], [it.x - hw, it.y + hh]];
+        pushPrism(wc, 2.2, { kind: 'f' }, [176, 186, 170], [150, 164, 150]);
+      });
+
+      /* buildings from BLDG footprints */
+      BUILDINGS.forEach((b, i) => {
+        const wc = [[BLDG[i][0], BLDG[i][1]], [BLDG[i][2], BLDG[i][3]], [BLDG[i][4], BLDG[i][5]], [BLDG[i][6], BLDG[i][7]]];
+        const sel = i === iso.sel, hov = i === iso.hover;
+        const wallC = sel ? [255, 220, 110] : hov ? [210, 226, 238] : [228, 224, 208];
+        const roofC = sel ? [255, 204, 0] : hov ? [46, 148, 96] : [26, 110, 62];
+        pushPrism(wc, isoH(b[0]), { kind: 'b', i: i, id: b[0], name: b[1] }, wallC, roofC);
+      });
+
+      faces.sort((a, b) => a.depth - b.depth);
+      faces.forEach(f => {
+        ctx.beginPath();
+        f.p.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fillStyle = f.fill; ctx.fill();
+        ctx.strokeStyle = 'rgba(15,23,42,0.25)'; ctx.lineWidth = 0.6; ctx.stroke();
+      });
+      isoFaces = faces;
+
+      /* roof labels */
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const fs = Math.max(7, Math.min(12, iso.scale * 9));
+      labels.forEach(L => {
+        ctx.font = '700 ' + fs + 'px Segoe UI';
+        ctx.fillStyle = 'rgba(15,23,42,0.75)';
+        ctx.fillText(L.id, L.x, L.y + fs * 0.9);
+        if (L.i === iso.sel || L.i === iso.hover) {
+          ctx.font = '600 11px Segoe UI';
+          const w = ctx.measureText(L.name).width + 14;
+          ctx.fillStyle = 'rgba(15,23,42,0.88)';
+          rrect(L.x - w / 2, L.y - 24, w, 18, 5); ctx.fill();
+          ctx.fillStyle = '#ffcc00';
+          ctx.fillText(L.name, L.x, L.y - 15);
+        }
+      });
+    }
+
+    /* ---- 3D render loop ---- */
+    (function isoLoop() {
+      if (iso.active) isoDraw();
+      requestAnimationFrame(isoLoop);
+    })();
+
+    function isoInit() {
+      iso.active = true;
+      isoResize();
+      if (!iso.inited) { isoFit(); iso.inited = true; }
+      isoSpinBtn();
+    }
+
+    /* ---- 3D hit-testing ---- */
+    function isoPick(e) {
+      const rect = isoCanvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+      for (let i = isoFaces.length - 1; i >= 0; i--) {
+        const f = isoFaces[i];
+        if (f.ref.kind === 'b' && pip(mx, my, f.p)) return f.ref.i;
+      }
+      return -1;
+    }
+    isoCanvas.addEventListener('mousemove', function (e) {
+      if (isoDrag) return;
+      iso.hover = isoPick(e);
+      isoCanvas.style.cursor = iso.hover >= 0 ? 'pointer' : 'grab';
+    });
+
+    /* ---- 3D orbit / zoom / click controls ---- */
+    let isoDrag = null;
+    isoCanvas.addEventListener('mousedown', function (e) {
+      isoDrag = { x: e.clientX, y: e.clientY, moved: 0 };
+      iso.spin = false; isoSpinBtn();
+      document.getElementById('isoWrap').classList.add('dragging');
+    });
+    window.addEventListener('mousemove', function (e) {
+      if (!isoDrag) return;
+      const dx = e.clientX - isoDrag.x, dy = e.clientY - isoDrag.y;
+      isoDrag.moved += Math.abs(dx) + Math.abs(dy);
+      iso.rot += dx * 0.005;
+      iso.pitch = Math.min(0.95, Math.max(0.3, iso.pitch - dy * 0.003));
+      isoDrag.x = e.clientX; isoDrag.y = e.clientY;
+    });
+    window.addEventListener('mouseup', function (e) {
+      if (!isoDrag) return;
+      const wasClick = isoDrag.moved < 5;
+      isoDrag = null;
+      document.getElementById('isoWrap').classList.remove('dragging');
+      if (wasClick) {
+        const hit = isoPick(e);
+        iso.sel = (hit >= 0) ? hit : -1;
+        if (iso.sel >= 0) isoShowInfo(iso.sel);
+        else document.getElementById('isoInfoCard').style.display = 'none';
+      }
+    });
+    isoCanvas.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      iso.zoom = Math.min(3, Math.max(0.4, iso.zoom * (e.deltaY < 0 ? 1.1 : 0.9)));
+    }, { passive: false });
+    isoCanvas.addEventListener('dblclick', function () { isoReset(); });
+
+    /* touch support */
+    isoCanvas.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        isoDrag = { x: t.clientX, y: t.clientY, moved: 0 };
+        iso.spin = false; isoSpinBtn();
+      }
+    }, { passive: true });
+    isoCanvas.addEventListener('touchmove', function (e) {
+      e.preventDefault();
+      if (e.touches.length === 1 && isoDrag) {
+        const t = e.touches[0];
+        iso.rot += (t.clientX - isoDrag.x) * 0.005;
+        iso.pitch = Math.min(0.95, Math.max(0.3, iso.pitch - (t.clientY - isoDrag.y) * 0.003));
+        isoDrag.moved += 3;
+        isoDrag.x = t.clientX; isoDrag.y = t.clientY;
+      }
+    }, { passive: false });
+    isoCanvas.addEventListener('touchend', function (e) {
+      if (isoDrag && isoDrag.moved < 5 && e.changedTouches[0]) {
+        const hit = isoPick(e.changedTouches[0]);
+        iso.sel = (hit >= 0) ? hit : -1;
+        if (iso.sel >= 0) isoShowInfo(iso.sel);
+        else document.getElementById('isoInfoCard').style.display = 'none';
+      }
+      isoDrag = null;
+    });
+
+    window.addEventListener('resize', function () {
+      if (iso.active) { isoResize(); isoFit(); }
+    });
+
+    /* ---- 3D button handlers ---- */
+    function isoZoomBtn(f) { iso.zoom = Math.min(3, Math.max(0.4, iso.zoom * f)); }
+    function isoRotateBtn(a) { iso.rot += a; }
+    function isoToggleSpin() { iso.spin = !iso.spin; isoSpinBtn(); }
+    function isoSpinBtn() {
+      const b = document.getElementById('spinBtn');
+      if (b) b.textContent = iso.spin ? '⏸ Spin: On' : '▶ Spin: Off';
+    }
+    function isoReset() {
+      iso.rot = -Math.PI * 0.75; iso.pitch = 0.55; iso.zoom = 1;
+      iso.panX = 0; iso.panY = 0; iso.sel = -1; iso.hover = -1;
+      document.getElementById('isoInfoCard').style.display = 'none';
+      isoFit();
+    }
+    function isoShowInfo(i) {
+      const b = BUILDINGS[i];
+      document.getElementById('isoInfoName').textContent = b[1];
+      document.getElementById('isoInfoDesc').textContent =
+        'Map reference ' + b[0] + ' • Footprint centre (' + b[2] + ', ' + b[3] + ') on the 740×507 directory. Click the button below to generate walking directions from your selected start point.';
+      document.getElementById('isoInfoCard').style.display = 'block';
+    }
+    function isoRouteToSelected() {
+      if (iso.sel < 0) return;
+      const id = 'ndmc_' + BUILDINGS[iso.sel][0];
+      const sel = document.getElementById('destLoc');
+      const opts = Array.prototype.slice.call(sel.options);
+      if (!opts.some(o => o.value === id)) { alert('Location not found in the directory.'); return; }
+      sel.value = id;
+      switchTab('user-navigation', document.querySelectorAll('.user-nav .nav-link')[1]);
     }
   </script>
 </body>
