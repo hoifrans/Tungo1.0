@@ -163,6 +163,7 @@
       background-color: #fff;
     }
     select:focus, input:focus, textarea:focus { outline: none; border-color: var(--primary); }
+    input:disabled { background-color: #f1f5f9; color: #475569; cursor: not-allowed; }
 
     .map-container {
       position: relative;
@@ -178,34 +179,6 @@
     }
     .map-img { width: 100%; height: 100%; object-fit: fill; display: block; }
     #mapOverlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-    .map-pin {
-      position: absolute;
-      width: 18px;
-      height: 18px;
-      background: #ef4444;
-      border: 2px solid white;
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      cursor: pointer;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      transition: transform 0.2s;
-      z-index: 5;
-    }
-    .map-pin.office { background: #2563eb; }
-    .map-pin:hover { transform: translate(-50%, -50%) scale(1.3); background: var(--secondary); }
-    .map-pin-label {
-      position: absolute;
-      bottom: 22px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,0.85);
-      color: white;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 0.7rem;
-      white-space: nowrap;
-      pointer-events: none;
-    }
 
     .route-result {
       display: none;
@@ -462,7 +435,6 @@
             <div class="card">
               <div class="card-title">
                 <span>NDMC Campus Map</span>
-                <span style="font-size: 0.75rem; color: #64748b; font-weight: normal;">Click pins to inspect</span>
               </div>
               <div class="map-container">
                 <img id="campusMapImg" src="image.png" class="map-img" alt="NDMC Campus Map">
@@ -604,7 +576,7 @@
               <button class="btn-primary" style="padding:0.4rem 0.8rem; font-size:0.85rem;" onclick="openLocationModal()">+ Add Location</button>
             </span>
           </div>
-          <p style="font-size:0.85rem; color:#64748b; margin-bottom: 1rem;">Add, edit, remove, and update campus buildings, offices, rooms, images, and pins. Base entries come from mapdata.js (740 × 507 traced directory).</p>
+          <p style="font-size:0.85rem; color:#64748b; margin-bottom: 1rem;">Add, edit, remove, and update campus buildings, offices, rooms, and images. Rooms/offices can be assigned to the building they are inside. Base entries come from mapdata.js (740 × 507 traced directory).</p>
 
           <table class="admin-table">
             <thead>
@@ -663,6 +635,12 @@
           <option value="building">Building</option>
           <option value="room">Room / Lab</option>
         </select>
+      </div>
+
+      <div class="form-group">
+        <label>Located Inside Building (optional):</label>
+        <select id="locParent" onchange="onParentChange()"></select>
+        <p style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">If chosen, the building name is filled in automatically and routes lead to that building's entrance.</p>
       </div>
 
       <div class="form-group">
@@ -961,7 +939,7 @@
         path: result.path,
         meters: Math.round(meters),
         mins: mins,
-        steps: buildSteps(result.path, loc.name)
+        steps: buildSteps(result.path, loc.parentRef ? loc.name + ' (inside ' + loc.building + (loc.floor ? ', ' + loc.floor : '') + ')' : loc.name)
       });
     }
 
@@ -1032,7 +1010,7 @@
       if (loc2) {
         document.getElementById('destImagePreview').innerHTML = `
           <h4 style="color:var(--primary);">${loc2.name}</h4>
-          <p style="font-size:0.8rem; color:#64748b; margin-bottom:0.5rem;">${loc2.building} — ${loc2.floor}</p>
+          <p style="font-size:0.8rem; color:#64748b; margin-bottom:0.5rem;">${loc2.parentRef ? 'Inside ' : ''}${loc2.building} — ${loc2.floor}</p>
           ${loc2.photo ? `<img src="${loc2.photo}" style="width:100%; height:160px; object-fit:cover; border-radius:6px;" alt="${loc2.name}">` : ''}
           <p style="font-size:0.85rem; margin-top:0.5rem; color:#334155;">${loc2.desc || ''}</p>
         `;
@@ -1188,7 +1166,7 @@
         locations.forEach(loc => {
           const opt = document.createElement('option');
           opt.value = loc.id;
-          opt.textContent = loc.name;
+          opt.textContent = loc.parentRef ? loc.name + ' — inside ' + loc.building : loc.name;
           select.appendChild(opt);
         });
         if (cur && locations.some(l => l.id === cur)) select.value = cur;
@@ -1204,7 +1182,7 @@
         locations.forEach(loc => {
           const opt = document.createElement('option');
           opt.value = loc.id;
-          opt.textContent = loc.name;
+          opt.textContent = loc.parentRef ? loc.name + ' — inside ' + loc.building : loc.name;
           select.appendChild(opt);
         });
         if (cur && (cur === 'main_gate' || cur === 'chapel' || locations.some(l => l.id === cur))) select.value = cur;
@@ -1242,29 +1220,11 @@
       }
     }
 
+    /* Map pins (circular dots) were removed from the NDMC campus map.
+       This now only refreshes the map image. */
     function renderMapPins() {
       document.getElementById('campusMapImg').src = campusMapUrl;
-      const container = document.getElementById('mapPins');
-      container.innerHTML = '';
-
-      locations.forEach(loc => {
-        const pin = document.createElement('div');
-        pin.className = 'map-pin' + (loc.category === 'office' ? ' office' : '');
-        pin.style.left = `${loc.pinX}%`;
-        pin.style.top = `${loc.pinY}%`;
-        pin.onclick = () => {
-          document.getElementById('destLoc').value = loc.id;
-          switchTab('user-navigation', document.querySelectorAll('.user-nav .nav-link')[1]);
-          generateDirections();
-        };
-
-        const label = document.createElement('div');
-        label.className = 'map-pin-label';
-        label.textContent = loc.name;
-        pin.appendChild(label);
-
-        container.appendChild(pin);
-      });
+      document.getElementById('mapPins').innerHTML = '';
     }
 
     function renderDirectory() {
@@ -1292,7 +1252,7 @@
         card.innerHTML = `
           ${photoHtml}
           <h4>${loc.name}</h4>
-          <p><strong>Building:</strong> ${loc.building}</p>
+          <p><strong>${loc.parentRef ? 'Inside:' : 'Building:'}</strong> ${loc.building}</p>
           <p><strong>Level:</strong> ${loc.floor}</p>
           <span class="badge badge-${loc.category}">${loc.category}</span>
         `;
@@ -1309,7 +1269,7 @@
         tr.innerHTML = `
           <td><strong>${loc.name}</strong></td>
           <td><span class="badge badge-${loc.category}">${loc.category}</span></td>
-          <td>${loc.building} (${loc.floor})</td>
+          <td>${loc.parentRef ? 'Inside ' : ''}${loc.building} (${loc.floor})</td>
           <td>X: ${loc.pinX}%, Y: ${loc.pinY}%</td>
           <td>
             <button class="action-btn btn-edit" onclick="editLocation('${loc.id}')">Edit</button>
@@ -1318,6 +1278,33 @@
         `;
         tbody.appendChild(tr);
       });
+    }
+
+    /* ---- "Located inside building" helpers ---- */
+    function populateParentSelect(selectedRef, selfRef) {
+      const sel = document.getElementById('locParent');
+      sel.innerHTML = '<option value="">— Not inside a building (standalone) —</option>';
+      BUILDINGS.forEach(function (b) {
+        if (selfRef && b[0] === selfRef) return;   // a building can't be inside itself
+        const o = document.createElement('option');
+        o.value = b[0];
+        o.textContent = b[1];
+        sel.appendChild(o);
+      });
+      sel.value = selectedRef || '';
+      onParentChange();
+    }
+
+    function onParentChange() {
+      const ref = document.getElementById('locParent').value;
+      const bInput = document.getElementById('locBuilding');
+      const b = BUILDINGS.find(x => x[0] === ref);
+      if (b) {
+        bInput.value = b[1];       // auto-fill building name
+        bInput.disabled = true;
+      } else {
+        bInput.disabled = false;
+      }
     }
 
     function openLocationModal(locId = null) {
@@ -1338,6 +1325,8 @@
         document.getElementById('locDesc').value = loc.desc || '';
         document.getElementById('dirMainGate').value = loc.directions?.main_gate ? loc.directions.main_gate.join('\n') : '';
         document.getElementById('dirChapel').value = loc.directions?.chapel ? loc.directions.chapel.join('\n') : '';
+        /* if this entry is itself a base building, exclude it from the parent list */
+        populateParentSelect(loc.parentRef, loc.parentRef ? null : loc.mapRef);
       } else {
         document.getElementById('modalFormTitle').textContent = 'Add Location';
         document.getElementById('locName').value = '';
@@ -1351,6 +1340,7 @@
         document.getElementById('locDesc').value = '';
         document.getElementById('dirMainGate').value = '';
         document.getElementById('dirChapel').value = '';
+        populateParentSelect('', null);
       }
       document.getElementById('locationModal').classList.add('active');
     }
@@ -1361,12 +1351,16 @@
       const id = document.getElementById('editLocId').value || 'loc_' + Date.now();
       const name = document.getElementById('locName').value.trim();
       const category = document.getElementById('locCategory').value;
-      const building = document.getElementById('locBuilding').value.trim();
       const floor = document.getElementById('locFloor').value.trim();
       const photo = document.getElementById('locPhotoData').value;
       const pinX = parseFloat(document.getElementById('locPinX').value) || 50;
       const pinY = parseFloat(document.getElementById('locPinY').value) || 50;
       const desc = document.getElementById('locDesc').value.trim();
+
+      /* parent building (optional) */
+      const parentRef = document.getElementById('locParent').value;
+      const parentB = BUILDINGS.find(b => b[0] === parentRef);
+      const building = parentB ? parentB[1] : document.getElementById('locBuilding').value.trim();
 
       const mainGateSteps = document.getElementById('dirMainGate').value.split('\n').filter(s => s.trim() !== '');
       const chapelSteps = document.getElementById('dirChapel').value.split('\n').filter(s => s.trim() !== '');
@@ -1378,18 +1372,34 @@
 
       const existing = locations.find(l => l.id === id);
 
+      /* A room/office inside a building routes to that building's door
+         and highlights that building in the 3D view. */
+      let mapRef;
+      if (parentRef) mapRef = parentRef;
+      else if (existing && !existing.parentRef) mapRef = existing.mapRef;
+
+      let finalPinX = pinX, finalPinY = pinY;
+      if (parentRef) {
+        const pItem = ITEMS.find(i => i.id === parentRef);
+        if (pItem) {
+          finalPinX = +(pItem.x / MAP_W * 100).toFixed(2);
+          finalPinY = +(pItem.y / MAP_H * 100).toFixed(2);
+        }
+      }
+
       const newLoc = {
         id,
-        mapRef: existing ? existing.mapRef : undefined,
+        mapRef,
+        parentRef: parentRef || undefined,
         name,
         category,
         building,
         floor: floor || 'Ground Floor',
         photo,
-        pinX,
-        pinY,
-        mapX: +(pinX / 100 * MAP_W).toFixed(2),
-        mapY: +(pinY / 100 * MAP_H).toFixed(2),
+        pinX: finalPinX,
+        pinY: finalPinY,
+        mapX: +(finalPinX / 100 * MAP_W).toFixed(2),
+        mapY: +(finalPinY / 100 * MAP_H).toFixed(2),
         desc,
         directions: {
           main_gate: mainGateSteps.length ? mainGateSteps : ["Walk towards building destination."],
@@ -1835,9 +1845,12 @@
     /* ---- building click → info card with Set as Start / Destination ---- */
     function isoShowInfo(i) {
       const b = BUILDINGS[i];
+      const inside = locations.filter(l => l.parentRef === b[0]).map(l => l.name);
       document.getElementById('isoInfoName').textContent = b[1];
       document.getElementById('isoInfoDesc').textContent =
-        'Map reference ' + b[0] + ' • Located at (' + b[2] + ', ' + b[3] + ') on the 740×507 directory. Use the buttons below to plan a route from this building — or to this building.';
+        'Map reference ' + b[0] + ' • Located at (' + b[2] + ', ' + b[3] + ') on the 740×507 directory.' +
+        (inside.length ? ' Inside this building: ' + inside.join(', ') + '.' : '') +
+        ' Use the buttons below to plan a route from this building — or to this building.';
       document.getElementById('isoInfoCard').style.display = 'block';
     }
 
